@@ -42,6 +42,27 @@
         .error-message.show {
             display: block;
         }
+
+        /* Responsive layout fixes */
+        @media (max-width: 768px) {
+            #mainHud > .flex {
+                flex-direction: column !important;
+            }
+            #mainHud > .flex > div:first-child {
+                width: 100% !important;
+                order: 1;
+            }
+            #mainHud > .flex > div:last-child {
+                width: 100% !important;
+                order: 2;
+            }
+        }
+
+        /* Speedometer fix - prevent text overlap */
+        .speedometer-center {
+            z-index: 5;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -70,8 +91,8 @@
             <p class="text-[11px] uppercase text-cyan-500/60 tracking-[0.3em] mb-8">Chassis Telemetry Core</p>
             
             <div id="roleSelectionWrapper" class="space-y-4">
-                <button id="btnSelectHost" tabindex="0" class="w-full py-4 bg-cyan-700 hover:bg-cyan-600 text-white font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg text-lg">Register Host Device</button>
-                <button id="btnSelectMonitor" tabindex="0" class="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold uppercase tracking-widest rounded-xl transition-all">Link Secondary Monitor</button>
+                <button id="btnSelectHost" tabindex="0" class="w-full py-4 bg-cyan-700 hover:bg-cyan-600 text-white font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg text-lg">Register Host</button>
+                <button id="btnSelectMonitor" tabindex="0" class="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg text-lg">Connect Monitor</button>
             </div>
 
             <div id="credentialsForm" class="hidden-state text-left space-y-4">
@@ -98,86 +119,86 @@
             <h2 class="text-3xl font-bold text-cyan-400 mb-2 uppercase tracking-widest glow-effect">Sensor Alignment</h2>
             <p class="text-slate-400 text-sm mb-8 tracking-wide">Mount the host device securely inside the chassis bay, then baseline horizontal vectors.</p>
             
-            <button id="btnSetZero" tabindex="0" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-xl shadow-lg mb-4 text-lg">Calibrate Surface 0°</button>
+            <button id="btnSetZero" tabindex="0" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-xl shadow-lg mb-4 text-lg">Calibrate Surface Zero</button>
             <button id="btnSkipCalib" tabindex="0" class="w-full py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-bold uppercase tracking-widest rounded-xl">Skip Calibration</button>
             
             <p class="text-xs text-emerald-400 font-bold tracking-widest mt-6 bg-emerald-950/40 py-2 rounded-lg border border-emerald-900/30 uppercase">100% Secure & Robust</p>
         </div>
     </div>
 
-    <div id="mainHud" class="hidden-state h-screen w-full flex flex-col p-4 z-30 absolute inset-0 bg-slate-950">
+    <div id="mainHud" class="hidden-state h-screen w-full flex flex-col p-2 md:p-4 z-30 absolute inset-0 bg-slate-950">
         
-        <div class="flex justify-between items-center bg-slate-900/60 backdrop-blur-md p-3 rounded-xl border border-slate-800/80 mb-4 shadow-xl z-20 shrink-0">
-            <div class="flex space-x-2 items-center">
-                <div id="telemetryIdDisplay" class="px-3 py-1.5 bg-slate-950 border border-cyan-500/30 text-cyan-400 rounded-lg font-bold text-sm tracking-widest">ID: ----</div>
+        <div class="flex justify-between items-center bg-slate-900/60 backdrop-blur-md p-2 md:p-3 rounded-lg md:rounded-xl border border-slate-800/80 mb-2 md:mb-4 shadow-xl z-20 shrink-0 flex-wrap gap-1 md:gap-2">
+            <div class="flex space-x-1 md:space-x-2 items-center flex-wrap">
+                <div id="telemetryIdDisplay" class="px-2 md:px-3 py-1 md:py-1.5 bg-slate-950 border border-cyan-500/30 text-cyan-400 rounded-lg font-bold text-xs md:text-sm tracking-widest">ID: ----</div>
                 
-                <button id="findBtn" tabindex="0" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-xs tracking-widest">Find</button>
-                <button id="settingsBtn" tabindex="0" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-xs tracking-widest">Settings</button>
-                <button id="previewBtn" tabindex="0" class="px-4 py-1.5 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-700/50 text-cyan-400 rounded-lg font-bold uppercase text-xs tracking-widest">Preview</button>
-                <button id="gearBtn" tabindex="0" class="px-4 py-1.5 bg-slate-950 border border-cyan-500/40 text-cyan-400 rounded-lg font-bold uppercase text-xs tracking-widest">Gear: FWD</button>
+                <button id="findBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-[10px] md:text-xs tracking-widest">Find</button>
+                <button id="settingsBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-[10px] md:text-xs tracking-widest">Sett</button>
+                <button id="previewBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-700/50 text-cyan-400 rounded-lg font-bold uppercase text-[10px] md:text-xs tracking-widest">Cam</button>
+                <button id="gearBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-slate-950 border border-cyan-500/40 text-cyan-400 rounded-lg font-bold uppercase text-[10px] md:text-xs tracking-widest">Gear: FWD</button>
             </div>
-            <button id="endHostBtn" tabindex="0" class="px-4 py-1.5 bg-red-950/60 text-red-400 hover:bg-red-600 hover:text-white border border-red-900/50 rounded-lg font-bold uppercase text-xs tracking-widest">End Session</button>
+            <button id="endHostBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-red-950/60 text-red-400 hover:bg-red-600 hover:text-white border border-red-900/50 rounded-lg font-bold uppercase text-[10px] md:text-xs tracking-widest">End</button>
         </div>
 
-        <div class="flex-1 flex flex-row gap-4 h-full min-h-0">
+        <div class="flex-1 flex flex-col md:flex-row gap-2 md:gap-4 h-full min-h-0">
             
-            <div class="w-[80%] flex flex-col gap-4 h-full">
-                <div class="flex-1 rounded-2xl overflow-hidden border border-slate-800 bg-black relative shadow-2xl">
-                    <div class="absolute top-3 left-3 px-2.5 py-1 bg-black/80 rounded-md text-[10px] font-bold text-cyan-400 tracking-widest uppercase z-10 flex items-center gap-2 border border-slate-700/50">
-                        <span class="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-ping"></span> FLUID PREVIEW STREAM
+            <div class="w-full md:w-[80%] flex flex-col gap-2 md:gap-4 h-full md:min-h-0">
+                <div class="flex-1 rounded-xl md:rounded-2xl overflow-hidden border border-slate-800 bg-black relative shadow-2xl min-h-0">
+                    <div class="absolute top-2 md:top-3 left-2 md:left-3 px-2 md:px-2.5 py-0.5 md:py-1 bg-black/80 rounded-md text-[9px] md:text-[10px] font-bold text-cyan-400 tracking-widest uppercase z-10 flex items-center gap-1 md:gap-2 border border-slate-700/60">
+                        <span class="w-1 md:w-1.5 h-1 md:h-1.5 bg-cyan-500 rounded-full animate-ping"></span> FLUID PREVIEW STREAM
                     </div>
                     <video id="fullViewCameraStream" autoplay playsinline muted class="w-full h-full object-cover"></video>
                 </div>
 
-                <div class="h-24 grid grid-cols-3 gap-4 shrink-0">
-                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center justify-between">
+                <div class="h-20 md:h-24 grid grid-cols-3 gap-2 md:gap-4 shrink-0">
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-2 md:p-3 rounded-lg md:rounded-xl flex items-center justify-between">
                         <div>
-                            <p class="text-[11px] text-slate-400 uppercase font-bold tracking-widest">Chassis Attitude</p>
-                            <div class="flex gap-3 mt-0.5">
-                                <div><span class="text-[9px] text-slate-500 block">PITCH</span><span id="slopeText" class="text-xl text-cyan-400 font-bold">0.0°</span></div>
-                                <div><span class="text-[9px] text-slate-500 block">ROLL</span><span id="rollText" class="text-xl text-amber-500 font-bold">0.0°</span></div>
+                            <p class="text-[9px] md:text-[11px] text-slate-400 uppercase font-bold tracking-widest">Attitude</p>
+                            <div class="flex gap-2 md:gap-3 mt-0.5">
+                                <div><span class="text-[8px] text-slate-500 block">PITCH</span><span id="slopeText" class="text-base md:text-xl text-cyan-400 font-bold">0.0°</span></div>
+                                <div><span class="text-[8px] text-slate-500 block">ROLL</span><span id="rollText" class="text-base md:text-xl text-amber-500 font-bold">0.0°</span></div>
                             </div>
                         </div>
-                        <div class="w-12 h-12 rounded-full border-2 border-slate-800/80 relative flex items-center justify-center bg-slate-950 shadow-inner shrink-0">
+                        <div class="w-10 md:w-12 h-10 md:h-12 rounded-full border-2 border-slate-800/80 relative flex items-center justify-center bg-slate-950 shadow-inner shrink-0">
                             <div class="absolute w-full h-[1px] bg-slate-800/60"></div>
                             <div class="absolute h-full w-[1px] bg-slate-800/60"></div>
                             <div class="absolute w-4 h-4 rounded-full border border-cyan-500/20"></div>
-                            <div id="levelBubble" class="w-2.5 h-2.5 rounded-full bg-cyan-400 absolute transition-transform duration-75 ease-out shadow-[0_0_8px_#22d3ee]" style="transform: translate(0px, 0px)"></div>
+                            <div id="levelBubble" class="w-2 md:w-2.5 h-2 md:h-2.5 rounded-full bg-cyan-400 absolute transition-transform duration-75 ease-out shadow-[0_0_8px_#22d3ee]" style="transform: translate(0px, 0px)"></div>
                         </div>
                     </div>
                     
-                    <div class="bg-slate-900/40 border border-slate-800/60 p-4 rounded-xl flex flex-col justify-center">
-                        <div class="flex justify-between items-end mb-1.5">
-                            <p class="text-[11px] text-slate-400 uppercase font-bold tracking-widest">Proximity</p>
-                            <p id="gapPercentageText" class="text-[11px] font-bold text-emerald-400">100.00%</p>
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-2 md:p-4 rounded-lg md:rounded-xl flex flex-col justify-center">
+                        <div class="flex justify-between items-end mb-1">
+                            <p class="text-[9px] md:text-[11px] text-slate-400 uppercase font-bold tracking-widest">Proximity</p>
+                            <p id="gapPercentageText" class="text-[9px] md:text-[11px] font-bold text-emerald-400">100.00%</p>
                         </div>
                         <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden p-[1px]">
                             <div id="gapIndicator" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: 100%"></div>
                         </div>
                     </div>
 
-                    <div class="bg-slate-900/40 border border-slate-800/60 p-4 rounded-xl flex flex-col justify-center text-right">
-                        <p class="text-[11px] text-slate-400 uppercase font-bold tracking-widest">Sea Level Base</p>
-                        <p id="seaLevelText" class="text-3xl text-slate-100 font-bold mt-0.5">3.22m</p>
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-2 md:p-4 rounded-lg md:rounded-xl flex flex-col justify-center text-right">
+                        <p class="text-[9px] md:text-[11px] text-slate-400 uppercase font-bold tracking-widest">Sea Level</p>
+                        <p id="seaLevelText" class="text-xl md:text-3xl text-slate-100 font-bold mt-0.5">3.22m</p>
                     </div>
                 </div>
             </div>
 
-            <div class="w-[20%] bg-slate-900/30 border border-slate-800/60 rounded-2xl p-4 flex flex-col items-center justify-center gap-6 shadow-2xl h-full">
-                <div id="dashContainer" class="relative w-full aspect-square max-w-[170px] flex items-center justify-center scale-105">
+            <div class="w-full md:w-[20%] bg-slate-900/30 border border-slate-800/60 rounded-xl md:rounded-2xl p-2 md:p-4 flex flex-col items-center justify-center gap-3 md:gap-6 shadow-2xl h-auto md:h-full min-h-0">
+                <div id="dashContainer" class="relative w-full aspect-square max-w-[140px] md:max-w-[170px] flex items-center justify-center scale-100 md:scale-105">
                     <svg class="w-full h-full transform -rotate-90 glow-effect text-slate-800" viewBox="0 0 100 100">
                         <circle cx="50" cy="50" r="41" fill="none" stroke="currentColor" stroke-width="7"></circle>
                         <circle id="speedDial" class="dial-ring" cx="50" cy="50" r="41" stroke="#ffffff" stroke-dasharray="258" stroke-dashoffset="258"></circle>
                     </svg>
-                    <div class="absolute text-center select-none bg-slate-950/60 p-4 rounded-full backdrop-blur-sm border border-slate-800/50 w-[80%] aspect-square flex flex-col justify-center items-center">
-                        <div id="speedText" class="text-5xl font-bold text-white leading-none tracking-tight">0</div>
-                        <div class="text-[11px] text-slate-400 uppercase tracking-widest font-bold mt-1">KM/H</div>
+                    <div class="speedometer-center absolute text-center select-none bg-slate-950/60 p-3 md:p-4 rounded-full backdrop-blur-sm border border-slate-800/50 w-[75%] aspect-square flex flex-col justify-center items-center">
+                        <div id="speedText" class="text-3xl md:text-5xl font-bold text-white leading-none tracking-tight">0</div>
+                        <div class="text-[9px] md:text-[11px] text-slate-400 uppercase tracking-widest font-bold mt-1">KM/H</div>
                     </div>
                 </div>
 
-                <div class="text-center w-full bg-slate-950 border border-slate-800/80 p-3 rounded-xl shadow-inner">
-                    <p class="text-[11px] text-slate-400 uppercase font-bold tracking-widest">Engine Power</p>
-                    <p id="rpmText" class="text-2xl text-amber-500 font-bold mt-0.5">0 RPM</p>
+                <div class="text-center w-full bg-slate-950 border border-slate-800/80 p-2 md:p-3 rounded-lg md:rounded-xl shadow-inner">
+                    <p class="text-[9px] md:text-[11px] text-slate-400 uppercase font-bold tracking-widest">Engine Power</p>
+                    <p id="rpmText" class="text-lg md:text-2xl text-amber-500 font-bold mt-0.5">0 RPM</p>
                 </div>
             </div>
         </div>
