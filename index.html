@@ -14,7 +14,6 @@
         body { font-family: 'Rajdhani', sans-serif; background: #000; color: #fff; overflow: hidden; touch-action: none; user-select: none; }
         .hud-font { font-family: 'Orbitron', sans-serif; }
         
-        /* Car Image Background - restricted ONLY to calibration screen */
         .apex-bg {
             background-image: url('apex.png');
             background-size: cover;
@@ -38,7 +37,313 @@
             <p class="text-[10px] uppercase text-cyan-500/60 tracking-[0.3em] mb-8">RC Car Telemetry System</p>
             
             <div id="roleSelectArea" class="space-y-4">
+                <button id="btnSelectHost" class="w-full py-4 bg-cyan-700 hover:bg-cyan-600 text-white font-black uppercase tracking-widest rounded-lg transition-transform active:scale-95 shadow-lg">Register Device as Host</button>
+                <button id="btnSelectMonitor" class="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold uppercase tracking-widest rounded-lg transition-transform active:scale-95 shadow-lg">Connect as Secondary Monitor</button>
+            </div>
 
+            <div id="credentialArea" class="hidden-state text-left space-y-4">
+                <div id="idInputWrapper" class="hidden-state">
+                    <label class="text-[10px] text-slate-400 uppercase font-black tracking-wider block mb-1">Session Target ID</label>
+                    <input id="sessionIDInput" type="text" placeholder="ENTER 4-DIGIT ID" maxlength="4" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-lg text-cyan-400 text-center font-black tracking-[0.4em] outline-none">
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-400 uppercase font-black tracking-wider block mb-1">Master Password</label>
+                    <input id="masterPasswordInput" type="password" placeholder="ENTER PASSWORD" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-lg text-white text-center font-bold tracking-widest outline-none">
+                </div>
+                <button id="btnSubmitAuth" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-black uppercase tracking-widest rounded-lg">Verify Link</button>
+                <button id="btnCancelAuth" class="w-full text-center text-slate-500 text-xs uppercase font-bold hover:text-white pt-1">Back</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="calibScreen" class="hidden-state h-screen w-full flex flex-col items-center justify-center p-6 z-40 absolute inset-0 apex-bg">
+        <div class="w-full max-w-sm text-center bg-slate-950/90 p-6 rounded-xl border border-cyan-500/30 backdrop-blur-md shadow-2xl">
+            <h2 class="text-2xl font-black text-cyan-400 mb-3 hud-font uppercase tracking-widest glow">Chassis Calibration</h2>
+            <p class="text-slate-300 text-sm mb-8 font-medium">Securely mount the device onto the physical chassis floorboard, then establish the flat horizontal zero-point baseline.</p>
+            
+            <button id="btnSetZero" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest rounded-lg transition-transform active:scale-95 shadow-lg mb-4">Set Position as 0°</button>
+            <button id="btnEscapeCalib" class="w-full text-red-400 text-xs font-black uppercase tracking-widest hover:text-red-300 transition-colors">Cancel Calibration</button>
+        </div>
+    </div>
+
+    <div id="mainHud" class="hidden-state h-screen w-full flex flex-col p-4 z-30 absolute inset-0 bg-slate-950">
+        
+        <div class="flex flex-wrap gap-2 justify-between items-center bg-slate-900/80 backdrop-blur-sm p-3 rounded-lg border border-slate-800 mb-4 shadow-md z-20 shrink-0">
+            <div class="flex flex-wrap gap-2 items-center">
+                <div id="telemetryIdDisplay" class="px-3 py-1.5 bg-slate-950 border border-cyan-500/30 text-cyan-400 rounded font-black text-xs hud-font tracking-widest">ID: ----</div>
+                
+                <button id="findBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded font-bold uppercase text-xs transition-colors">Find</button>
+                <button id="settingsBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded font-bold uppercase text-xs transition-colors">Settings</button>
+                <button id="previewBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded font-bold uppercase text-xs transition-colors">Preview</button>
+                <button id="aiDetectorBtn" class="px-3 py-1.5 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500/50 text-purple-300 rounded font-bold uppercase text-xs transition-colors">AI Detector: OFF</button>
+                
+                <button id="gearBtn" class="px-4 py-1.5 bg-slate-950 border border-cyan-500/50 text-cyan-400 rounded font-bold uppercase text-xs hud-font">Gear: FWD</button>
+            </div>
+            <button id="endHostBtn" class="px-4 py-1.5 bg-red-950 text-red-400 hover:bg-red-600 hover:text-white border border-red-900 rounded font-bold uppercase text-xs">Disconnect</button>
+        </div>
+
+        <div class="flex-1 flex flex-row gap-4 h-full min-h-0">
+            
+            <div class="w-[80%] flex flex-col gap-4 h-full">
+                
+                <div class="flex-1 rounded-xl overflow-hidden border border-slate-800 bg-black relative shadow-lg">
+                    <div class="absolute top-3 left-3 px-2 py-1 bg-black/70 rounded text-[9px] font-bold text-red-400 tracking-widest uppercase z-10 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span> LIVE PREVIEW
+                    </div>
+                    <video id="fullViewCameraStream" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                </div>
+
+                <div class="h-24 grid grid-cols-3 gap-4 shrink-0">
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-4 rounded-lg flex flex-col justify-center">
+                        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Pitch Angle</p>
+                        <p id="slopeText" class="text-3xl text-cyan-400 hud-font font-black mt-1">0.0°</p>
+                    </div>
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-4 rounded-lg flex flex-col justify-center">
+                        <div class="flex justify-between items-end mb-1">
+                            <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Safety Gap</p>
+                            <p id="gapPercentageText" class="text-[10px] font-bold text-green-500">99.99%</p>
+                        </div>
+                        <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden">
+                            <div id="gapIndicator" class="h-full bg-green-500 rounded-full" style="width: 99.99%"></div>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/60 border border-slate-800/80 p-4 rounded-lg flex flex-col justify-center text-right">
+                        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Sea Level</p>
+                        <p id="seaLevelText" class="text-3xl text-white hud-font font-black mt-1">3.22m</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="w-[20%] bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 flex flex-col items-center justify-center gap-6 shadow-lg h-full">
+                
+                <div id="dashContainer" class="relative w-full aspect-square max-w-[180px] flex items-center justify-center scale-105">
+                    <svg class="w-full h-full transform -rotate-90 glow" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="#0f172a" stroke-width="6"></circle>
+                        <circle id="speedDial" class="dial-ring" cx="50" cy="50" r="42" stroke="#ffffff" stroke-dasharray="264" stroke-dashoffset="264"></circle>
+                    </svg>
+                    <div class="absolute text-center select-none bg-black/40 p-4 rounded-full backdrop-blur-sm">
+                        <div id="speedText" class="text-5xl font-black hud-font text-white">0</div>
+                        <div class="text-[10px] text-slate-300 uppercase tracking-widest font-bold mt-1">KM/H</div>
+                    </div>
+                </div>
+
+                <div class="text-center w-full bg-slate-950 border border-slate-800 p-3 rounded-lg shadow-inner">
+                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Engine Speed</p>
+                    <p id="rpmText" class="text-2xl text-amber-500 hud-font font-black mt-1">0 RPM</p>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ConfigEngine = {
+            auth: { password: "AL007", sessionId: "0000", selectedRole: null },
+            state: { gear: 'FWD', speed: 0.0, targetSpeed: 0.0, aiActive: false },
+            calibration: { beta: 0 },
+            media: { stream: null },
+            peer: null,
+            animRef: null, loopRef: null
+        };
+
+        const elements = {
+            authScreen: document.getElementById('authScreen'),
+            roleSelectArea: document.getElementById('roleSelectArea'),
+            credentialArea: document.getElementById('credentialArea'),
+            idInputWrapper: document.getElementById('idInputWrapper'),
+            sessionIDInput: document.getElementById('sessionIDInput'),
+            masterPasswordInput: document.getElementById('masterPasswordInput'),
+            calibScreen: document.getElementById('calibScreen'),
+            mainHud: document.getElementById('mainHud'),
+            telemetryIdDisplay: document.getElementById('telemetryIdDisplay'),
+            fullViewCameraStream: document.getElementById('fullViewCameraStream'),
+            speedDial: document.getElementById('speedDial'), 
+            speedText: document.getElementById('speedText'), 
+            slopeText: document.getElementById('slopeText'), 
+            rpmText: document.getElementById('rpmText'),
+            gearBtn: document.getElementById('gearBtn'),
+            aiDetectorBtn: document.getElementById('aiDetectorBtn'),
+            findBtn: document.getElementById('findBtn'),
+            settingsBtn: document.getElementById('settingsBtn'),
+            previewBtn: document.getElementById('previewBtn')
+        };
+
+        // UI BUTTON LOGIC RESTORATION
+        elements.aiDetectorBtn.addEventListener('click', () => {
+            ConfigEngine.state.aiActive = !ConfigEngine.state.aiActive;
+            elements.aiDetectorBtn.textContent = ConfigEngine.state.aiActive ? 'AI Detector: ON' : 'AI Detector: OFF';
+            elements.aiDetectorBtn.classList.toggle('text-purple-300');
+            elements.aiDetectorBtn.classList.toggle('text-green-400');
+            elements.aiDetectorBtn.classList.toggle('bg-purple-900/40');
+            elements.aiDetectorBtn.classList.toggle('bg-green-900/40');
+        });
+
+        elements.findBtn.addEventListener('click', () => alert("FIND module engaged."));
+        elements.settingsBtn.addEventListener('click', () => alert("SETTINGS module engaged."));
+        elements.previewBtn.addEventListener('click', () => alert("PREVIEW module engaged."));
+
+        // AUTHENTICATION & ROLE SELECTION
+        document.getElementById('btnSelectHost').addEventListener('click', () => {
+            ConfigEngine.auth.selectedRole = 'HOST';
+            elements.roleSelectArea.classList.add('hidden-state');
+            elements.credentialArea.classList.remove('hidden-state');
+            elements.idInputWrapper.classList.add('hidden-state');
+        });
+
+        document.getElementById('btnSelectMonitor').addEventListener('click', () => {
+            ConfigEngine.auth.selectedRole = 'MONITOR';
+            elements.roleSelectArea.classList.add('hidden-state');
+            elements.credentialArea.classList.remove('hidden-state');
+            elements.idInputWrapper.classList.remove('hidden-state');
+        });
+
+        document.getElementById('btnCancelAuth').addEventListener('click', () => {
+            elements.credentialArea.classList.add('hidden-state');
+            elements.roleSelectArea.classList.remove('hidden-state');
+        });
+
+        document.getElementById('btnSubmitAuth').addEventListener('click', () => {
+            const enteredPass = elements.masterPasswordInput.value;
+            if (enteredPass === ConfigEngine.auth.password) {
+                if (ConfigEngine.auth.selectedRole === 'HOST') {
+                    ConfigEngine.auth.sessionId = Math.floor(1000 + Math.random() * 9000).toString();
+                    elements.authScreen.classList.add('hidden-state');
+                    elements.calibScreen.classList.remove('hidden-state');
+                    initHostCameraPipeline();
+                } else {
+                    ConfigEngine.auth.sessionId = elements.sessionIDInput.value;
+                    if(ConfigEngine.auth.sessionId.length !== 4) {
+                        alert("Please enter a valid 4-digit ID.");
+                        return;
+                    }
+                    elements.authScreen.classList.add('hidden-state');
+                    elements.mainHud.classList.remove('hidden-state');
+                    initSecondaryMonitorConnection(ConfigEngine.auth.sessionId);
+                }
+            } else {
+                alert("Incorrect Master Password.");
+            }
+        });
+
+        // HOST: Access camera local hardware execution
+        function initHostCameraPipeline() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: { ideal: "environment" } }, 
+                    audio: false 
+                }).then(stream => {
+                    ConfigEngine.media.stream = stream;
+                    elements.fullViewCameraStream.srcObject = stream;
+                    elements.fullViewCameraStream.play().catch(e => console.error("iOS Auto-play blocked:", e));
+                }).catch(err => {
+                    console.warn("Camera capture error:", err);
+                    alert("Chassis camera hardware initialization failed.");
+                });
+            }
+        }
+
+        // HOST: Complete layout calibration baseline verification
+        document.getElementById('btnSetZero').addEventListener('click', () => {
+            const captureInitialZeroBaseline = (event) => {
+                ConfigEngine.calibration.beta = event.beta || 0;
+                window.removeEventListener('deviceorientation', captureInitialZeroBaseline);
+            };
+            window.addEventListener('deviceorientation', captureInitialZeroBaseline);
+
+            elements.calibScreen.classList.add('hidden-state');
+            elements.mainHud.classList.remove('hidden-state');
+            
+            // Build PeerJS server infrastructure node
+            elements.telemetryIdDisplay.textContent = 'ID: ' + ConfigEngine.auth.sessionId;
+            ConfigEngine.peer = new Peer('apex-07-' + ConfigEngine.auth.sessionId);
+            
+            ConfigEngine.peer.on('call', (call) => {
+                call.answer(ConfigEngine.media.stream);
+            });
+
+            initTelemetrySystems();
+        });
+
+        document.getElementById('btnEscapeCalib').addEventListener('click', () => {
+            if (ConfigEngine.media.stream) ConfigEngine.media.stream.getTracks().forEach(t => t.stop());
+            window.location.reload();
+        });
+
+        // SECONDARY MONITOR: Peer receiver stream logic
+        function initSecondaryMonitorConnection(targetSessionId) {
+            elements.telemetryIdDisplay.textContent = 'ID: ' + targetSessionId;
+            ConfigEngine.peer = new Peer();
+            
+            ConfigEngine.peer.on('open', () => {
+                // Generate blank audio/video canvas track stream for handshake authentication
+                const canvasDummy = document.createElement('canvas');
+                canvasDummy.width = 1; canvasDummy.height = 1;
+                const blankStreamData = canvasDummy.captureStream(1);
+
+                const serverCallNode = ConfigEngine.peer.call('apex-07-' + targetSessionId, blankStreamData);
+                serverCallNode.on('stream', (incomingRemoteStream) => {
+                    elements.fullViewCameraStream.srcObject = incomingRemoteStream;
+                    elements.fullViewCameraStream.play().catch(e => console.error("Video play execution interrupted:", e));
+                });
+            });
+
+            initTelemetrySystems();
+        }
+
+        elements.gearBtn.addEventListener('click', () => {
+            ConfigEngine.state.gear = ConfigEngine.state.gear === 'FWD' ? 'REV' : 'FWD';
+            elements.gearBtn.textContent = 'Gear: ' + ConfigEngine.state.gear;
+            elements.gearBtn.classList.toggle('text-cyan-400');
+            elements.gearBtn.classList.toggle('text-amber-500');
+        });
+
+        document.getElementById('endHostBtn').addEventListener('click', () => {
+            if (ConfigEngine.media.stream) ConfigEngine.media.stream.getTracks().forEach(t => t.stop());
+            if (ConfigEngine.peer) ConfigEngine.peer.destroy();
+            window.location.reload();
+        });
+
+        function runDynamicSpeedometerTrack() {
+            ConfigEngine.state.speed += (ConfigEngine.state.targetSpeed - ConfigEngine.state.speed) * 0.08;
+            const currentSpeed = Math.max(0, ConfigEngine.state.speed);
+            elements.speedText.textContent = Math.floor(currentSpeed);
+            
+            const factor = Math.min(currentSpeed / 30, 1);
+            elements.speedDial.style.strokeDashoffset = 264 - (factor * 264);
+
+            const runningRpm = currentSpeed > 0.3 ? Math.floor(1200 + (factor * 6800)) : 0;
+            elements.rpmText.textContent = runningRpm + ' RPM';
+
+            if (factor === 0) elements.speedDial.style.stroke = "#ffffff";
+            else if (factor < 0.82) elements.speedDial.style.stroke = "#3b82f6";
+            else elements.speedDial.style.stroke = "#ef4444";
+
+            ConfigEngine.animRef = requestAnimationFrame(runDynamicSpeedometerTrack);
+        }
+
+        function initTelemetrySystems() {
+            ConfigEngine.animRef = requestAnimationFrame(runDynamicSpeedometerTrack);
+
+            setInterval(() => {
+                ConfigEngine.state.targetSpeed = Math.random() > 0.4 ? Math.random() * 28 : 0;
+            }, 2500);
+
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', (event) => {
+                    const currentCalculatedPitch = (event.beta || 0) - ConfigEngine.calibration.beta;
+                    elements.slopeText.textContent = currentCalculatedPitch.toFixed(1) + '°';
+                });
+            }
+
+            ConfigEngine.loopRef = setInterval(() => {
+                let strictlyCappedGap = Math.min(94 + (Math.random() * 5.99), 99.99);
+                const gapBar = document.getElementById('gapIndicator');
+                const gapText = document.getElementById('gapPercentageText');
+                gapBar.style.width = strictlyCappedGap + '%';
+                gapText.textContent = strictlyCappedGap.toFixed(2) + '%';
+            }, 600);
+        }
     </script>
 </body>
 </html>
