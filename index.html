@@ -1,935 +1,561 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>APEX-07 // FLUID TELEMETRY OS</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    <!-- TensorFlow.js with GPU support and fallback -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Oswald:wght@500;700&display=swap');
-        
-        body { font-family: 'Agency FB', 'Oswald', sans-serif; background: #020617; color: #f8fafc; overflow: hidden; touch-action: none; user-select: none; }
-        .hud-font { font-family: 'Orbitron', sans-serif; }
-        
-        .apex-bg {
-            background-image: url('apex.png');
-            background-size: cover; background-position: center; background-repeat: no-repeat;
-            background-color: rgba(2, 6, 23, 0.7); background-blend-mode: darken;
-        }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>APEX-07 // Fluid Telemetry OS — Demo</title>
 
-        .hidden-state { opacity: 0; pointer-events: none; transform: scale(0.95); position: absolute; }
-        .visible-state { opacity: 1; pointer-events: auto; transform: scale(1); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .dial-ring { fill: none; stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 0.1s ease, stroke 0.3s ease; }
-        .glow-effect { filter: drop-shadow(0 0 8px currentColor); }
-        
-        button:focus, input:focus, [tabindex="0"]:focus {
-            outline: 2px solid #06b6d4; outline-offset: 2px;
-            box-shadow: 0 0 15px rgba(6, 182, 212, 0.6);
-        }
+  <!-- Fonts & minimal Tailwind-like utilities (kept inline for portability) -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
 
-        .error-message {
-            color: #ef4444;
-            font-size: 11px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            margin-top: 4px;
-            display: none;
-        }
-
-        .error-message.show {
-            display: block;
-        }
-
-        @media (max-width: 768px) {
-            #mainHud > .flex {
-                flex-direction: column !important;
-            }
-            #mainHud > .flex > div:first-child {
-                width: 100% !important;
-                order: 1;
-            }
-            #mainHud > .flex > div:last-child {
-                width: 100% !important;
-                order: 2;
-            }
-        }
-
-        #dashContainer {
-            padding: 6px;
-            box-sizing: border-box;
-        }
-
-        .speedometer-center {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 50;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 72%;
-            height: 72%;
-            box-sizing: border-box;
-            background-clip: padding-box;
-        }
-
-        #dashContainer svg { position: relative; z-index: 10; }
-
-        @media (max-width: 420px) {
-            #dashContainer { max-width: 120px; }
-            .speedometer-center { width: 66%; height: 66%; }
-            .speedometer-center #speedText { font-size: 1.4rem; }
-        }
-
-        #levelBubble { transform: translate(0px, 0px); }
-
-        .ai-insights-panel {
-            background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-            border: 1px solid rgba(6, 182, 212, 0.3);
-            border-radius: 0.75rem;
-            padding: 1rem;
-            margin-top: 1rem;
-            max-height: 140px;
-            overflow-y: auto;
-        }
-
-        .ai-insight-item {
-            font-size: 0.75rem;
-            line-height: 1.4;
-            margin-bottom: 0.5rem;
-            padding: 0.4rem 0.6rem;
-            border-left: 2px solid;
-            border-left-color: #06b6d4;
-            background: rgba(2, 6, 23, 0.4);
-            border-radius: 0.25rem;
-        }
-
-        .ai-insight-item.warning {
-            border-left-color: #f59e0b;
-            color: #fcd34d;
-        }
-
-        .ai-insight-item.danger {
-            border-left-color: #ef4444;
-            color: #fca5a5;
-        }
-
-        .ai-insight-item.success {
-            border-left-color: #10b981;
-            color: #a7f3d0;
-        }
-
-        .ai-badge {
-            display: inline-block;
-            background: linear-gradient(135deg, #06b6d4, #8b5cf6);
-            color: white;
-            padding: 0.2rem 0.5rem;
-            border-radius: 0.25rem;
-            font-size: 0.65rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-right: 0.4rem;
-        }
-
-        #detectionCanvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 40;
-        }
-
-        .speed-source-indicator {
-            font-size: 0.65rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-top: 2px;
-            opacity: 0.7;
-        }
-
-        .speed-source-gpu {
-            color: #10b981;
-        }
-
-        .speed-source-motion {
-            color: #f59e0b;
-        }
-
-    </style>
+  <style>
+    /* --- Minimal HUD styling (self-contained) --- */
+    :root{--bg:#020617;--panel:#0b1220;--accent:#06b6d4;--muted:#94a3b8}
+    html,body{height:100%;margin:0;background:var(--bg);color:#f8fafc;font-family:Oswald,Arial,sans-serif;overflow:hidden}
+    .center{display:flex;align-items:center;justify-content:center}
+    .hidden{display:none}
+    .hud{box-sizing:border-box;padding:12px;height:100%;display:flex;flex-direction:column;gap:10px}
+    .topbar{display:flex;gap:8px;align-items:center;justify-content:space-between;background:rgba(10,14,20,0.6);border:1px solid rgba(6,182,212,0.08);padding:8px;border-radius:10px}
+    .badge{padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px}
+    .btn{background:#0f1724;color:#e6f6f9;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);cursor:pointer}
+    .main{display:flex;flex:1;gap:12px;min-height:0}
+    .left{flex:1;display:flex;flex-direction:column;gap:10px;min-height:0}
+    .videoPanel{position:relative;border-radius:12px;overflow:hidden;background:#000;border:1px solid rgba(255,255,255,0.03);flex:1;min-height:0}
+    video{width:100%;height:100%;object-fit:cover;display:block}
+    canvas#detectionCanvas{position:absolute;left:0;top:0;z-index:40;pointer-events:none}
+    .statsRow{display:flex;gap:8px}
+    .stat{background:rgba(8,12,18,0.6);padding:8px;border-radius:8px;min-width:120px;text-align:left}
+    .right{width:260px;display:flex;flex-direction:column;gap:10px}
+    .dial{background:linear-gradient(180deg,#07101a,#0b1220);border-radius:12px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:8px;border:1px solid rgba(255,255,255,0.03)}
+    svg{width:100%;height:auto;display:block}
+    .speedText{font-family:Orbitron,monospace;font-size:34px;color:var(--accent);font-weight:900}
+    .insights{background:linear-gradient(135deg,rgba(6,182,212,0.04),rgba(139,92,246,0.03));padding:10px;border-radius:10px;overflow:auto;max-height:220px;border:1px solid rgba(255,255,255,0.02)}
+    .insight{padding:8px;border-radius:6px;margin-bottom:6px;font-size:13px}
+    .insight.warning{background:rgba(245,158,11,0.06);border-left:4px solid #f59e0b}
+    .insight.danger{background:rgba(239,68,68,0.06);border-left:4px solid #ef4444}
+    .insight.success{background:rgba(16,185,129,0.06);border-left:4px solid #10b981}
+    .small{font-size:12px;color:var(--muted)}
+    .controls{display:flex;gap:8px;flex-wrap:wrap}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:200}
+    .card{background:#07101a;padding:16px;border-radius:12px;border:1px solid rgba(6,182,212,0.06);width:360px}
+    input[type=number],input[type=text],input[type=password]{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:#07101a;color:#e6f6f9}
+    .footer{font-size:12px;color:var(--muted);text-align:center;padding:6px}
+    @media (max-width:900px){.right{display:none}.main{flex-direction:column}}
+  </style>
 </head>
-<body class="antialiased">
-
-    <div id="settingsModal" class="hidden-state fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300">
-        <div class="bg-slate-900 border border-cyan-500/50 p-6 rounded-xl w-full max-w-sm shadow-2xl">
-            <h3 class="text-2xl font-bold text-cyan-400 tracking-wider mb-4">SYSTEM SETTINGS</h3>
-            <div class="space-y-4">
-                <div>
-                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Top Speed Bound (KM/H)</label>
-                    <input id="inputTopSpeed" type="number" tabindex="0" class="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center font-bold tracking-widest outline-none">
-                </div>
-                <div>
-                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Base Sea Level (m)</label>
-                    <input id="inputSeaLevel" type="number" step="0.01" tabindex="0" class="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center font-bold tracking-widest outline-none">
-                </div>
-                <div>
-                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">AI Sensitivity (0-100)</label>
-                    <input id="inputAISensitivity" type="number" min="0" max="100" tabindex="0" class="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center font-bold tracking-widest outline-none">
-                </div>
-                <div>
-                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Detection Threshold (0-1)</label>
-                    <input id="inputDetectionThreshold" type="number" min="0" max="1" step="0.05" tabindex="0" class="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center font-bold tracking-widest outline-none" value="0.5">
-                </div>
-                <div>
-                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Motion Speed Factor (0.1-2.0)</label>
-                    <input id="inputMotionFactor" type="number" min="0.1" max="2.0" step="0.1" tabindex="0" class="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center font-bold tracking-widest outline-none" value="1.0">
-                </div>
-                <button id="btnSaveSettings" tabindex="0" class="w-full py-3 bg-cyan-700 hover:bg-cyan-600 text-white font-bold uppercase tracking-widest rounded mt-2">Save Parameters</button>
-                <button id="btnCloseSettings" tabindex="0" class="w-full py-2 bg-transparent text-slate-500 hover:text-slate-300 font-bold uppercase text-xs tracking-widest">Cancel</button>
-            </div>
-        </div>
+<body>
+  <div id="app" class="hud">
+    <div class="topbar">
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="badge" id="telemetryId">ID: ----</div>
+        <div class="badge" id="gpuBadge">GPU: INIT</div>
+        <div class="badge" id="aiBadge">AI: IDLE</div>
+        <div class="small" style="margin-left:8px">APEX-07 • Chassis Telemetry Core</div>
+      </div>
+      <div class="controls">
+        <button id="findBtn" class="btn">Find</button>
+        <button id="previewBtn" class="btn">Preview</button>
+        <button id="settingsBtn" class="btn">Settings</button>
+        <button id="disconnectBtn" class="btn" style="background:#3b0f0f">Disconnect</button>
+      </div>
     </div>
 
-    <div id="authScreen" class="visible-state h-screen w-full flex flex-col justify-center items-center p-6 z-50 absolute inset-0 bg-slate-950">
-        <div class="w-full max-w-sm p-8 bg-slate-900/40 border border-cyan-500/30 rounded-2xl shadow-2xl text-center backdrop-blur-lg">
-            <h1 class="text-5xl font-bold text-cyan-400 mb-1 tracking-wider glow-effect">APEX-07</h1>
-            <p class="text-[11px] uppercase text-cyan-500/60 tracking-[0.3em] mb-8">Chassis Telemetry Core + GPU AI + Motion Speedometer</p>
-            
-            <div id="roleSelectionWrapper" class="space-y-4">
-                <button id="btnSelectHost" tabindex="0" class="w-full py-4 bg-cyan-700 hover:bg-cyan-600 text-white font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg text-lg">Register Host</button>
-                <button id="btnSelectMonitor" tabindex="0" class="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold uppercase tracking-widest rounded-xl">Monitor Link</button>
-            </div>
-
-            <div id="credentialsForm" class="hidden-state text-left space-y-4">
-                <div id="sessionField" class="hidden-state">
-                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Target Transceiver ID</label>
-                    <input id="sessionIDInput" type="text" tabindex="0" placeholder="0000" maxlength="4" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-xl text-cyan-400 text-center font-bold tracking-widest outline-none">
-                    <div id="sessionIDError" class="error-message">Wrong ID</div>
-                </div>
-                <div>
-                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Master Access Key</label>
-                    <input id="masterPasswordInput" type="password" tabindex="0" placeholder="••••••••" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-xl text-white text-center font-bold tracking-widest outline-none">
-                    <div id="passwordError" class="error-message">Wrong Password</div>
-                </div>
-                <button id="btnSubmitAuth" tabindex="0" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold uppercase tracking-widest rounded-xl shadow-lg">Authorize Node Link</button>
-                <button id="btnCancelAuth" tabindex="0" class="w-full text-center text-slate-500 text-xs uppercase font-bold hover:text-slate-300 pt-2 tracking-widest">Back to Terminal</button>
-            </div>
-
-            <p class="text-[12px] text-slate-500 font-bold mt-8 tracking-widest border-t border-slate-800/80 pt-4">Created By-Aadish Madhav | GPU AI + Motion Sensor</p>
+    <div class="main">
+      <div class="left">
+        <div class="videoPanel" id="videoPanel">
+          <video id="cameraStream" autoplay playsinline muted></video>
+          <canvas id="detectionCanvas"></canvas>
         </div>
+
+        <div class="statsRow">
+          <div class="stat">
+            <div class="small">Attitude</div>
+            <div style="display:flex;gap:12px;margin-top:6px">
+              <div><div class="small">PITCH</div><div id="pitchText" style="font-weight:800">0.0°</div></div>
+              <div><div class="small">ROLL</div><div id="rollText" style="font-weight:800">0.0°</div></div>
+            </div>
+          </div>
+
+          <div class="stat">
+            <div class="small">Proximity</div>
+            <div style="margin-top:6px"><div id="gapPercent" style="font-weight:800">100.00%</div></div>
+          </div>
+
+          <div class="stat">
+            <div class="small">Detections</div>
+            <div style="margin-top:6px"><div id="detectionCount" style="font-weight:800">0</div></div>
+          </div>
+        </div>
+
+        <div class="insights" id="aiInsights">
+          <div class="small">AI Engine: Awaiting sensor data...</div>
+        </div>
+      </div>
+
+      <div class="right">
+        <div class="dial">
+          <svg viewBox="0 0 100 100" style="transform:rotate(-90deg);width:100%">
+            <circle cx="50" cy="50" r="41" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="7"></circle>
+            <circle id="speedDial" cx="50" cy="50" r="41" stroke="#ffffff" stroke-width="7" stroke-dasharray="258" stroke-dashoffset="258" fill="none" style="transition:stroke-dashoffset 0.12s linear"></circle>
+          </svg>
+          <div class="center" style="flex-direction:column">
+            <div class="speedText" id="speedText">0</div>
+            <div class="small">KM/H</div>
+            <div class="small" id="speedSource">MOTION</div>
+          </div>
+        </div>
+
+        <div class="dial" style="padding:10px">
+          <div class="small">Engine Power</div>
+          <div id="rpmText" style="font-weight:900;color:#f59e0b">0 RPM</div>
+        </div>
+
+        <div class="dial" style="padding:10px">
+          <div class="small">System Controls</div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="calibBtn" class="btn">Calibrate</button>
+            <button id="resetBtn" class="btn">Reset</button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div id="calibScreen" class="hidden-state h-screen w-full flex flex-col items-center justify-center p-6 z-40 absolute inset-0 apex-bg">
-        <div class="w-full max-w-sm text-center bg-slate-950/90 p-8 rounded-2xl border border-cyan-500/30 backdrop-blur-md shadow-2xl">
-            <h2 class="text-3xl font-bold text-cyan-400 mb-2 uppercase tracking-widest glow-effect">Sensor Alignment</h2>
-            <p class="text-slate-400 text-sm mb-8 tracking-wide">Mount the host device securely inside the chassis bay, then baseline horizontal vectors.</p>
-            
-            <button id="btnSetZero" tabindex="0" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-xl shadow-lg mb-4 text-lg">Calibrate Surface Zero</button>
-            <button id="btnSkipCalib" tabindex="0" class="w-full py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-bold uppercase tracking-widest rounded-xl">Skip Calibration</button>
-            
-            <p class="text-xs text-emerald-400 font-bold tracking-widest mt-6 bg-emerald-950/40 py-2 rounded-lg border border-emerald-900/30 uppercase">GPU Enabled + Motion Sensor Ready</p>
-        </div>
+    <div class="footer">Created By - Aadish Madhav | GPU AI + Motion Sensor</div>
+  </div>
+
+  <!-- Settings Modal (hidden by default) -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="card">
+      <h3 style="margin:0 0 8px 0;color:var(--accent)">SYSTEM SETTINGS</h3>
+      <label class="small">Top Speed Bound (KM/H)</label>
+      <input id="inputTopSpeed" type="number" value="30" />
+      <label class="small" style="margin-top:8px">AI Sensitivity (0-100)</label>
+      <input id="inputAISensitivity" type="number" value="75" />
+      <label class="small" style="margin-top:8px">Detection Threshold (0-1)</label>
+      <input id="inputDetectionThreshold" type="number" step="0.05" min="0" max="1" value="0.5" />
+      <label class="small" style="margin-top:8px">Motion Speed Factor (0.1-2.0)</label>
+      <input id="inputMotionFactor" type="number" step="0.1" min="0.1" max="2.0" value="1.0" />
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button id="saveSettings" class="btn">Save</button>
+        <button id="closeSettings" class="btn">Close</button>
+      </div>
     </div>
+  </div>
 
-    <div id="mainHud" class="hidden-state h-screen w-full flex flex-col p-2 md:p-4 z-30 absolute inset-0 bg-slate-950">
-        
-        <div class="flex justify-between items-center bg-slate-900/60 backdrop-blur-md p-2 md:p-3 rounded-lg md:rounded-xl border border-slate-800/80 mb-2 md:mb-4 shadow-xl z-20 shrink-0 flex-wrap gap-2">
-            <div class="flex space-x-1 md:space-x-2 items-center flex-wrap">
-                <div id="telemetryIdDisplay" class="px-2 md:px-3 py-1 md:py-1.5 bg-slate-950 border border-cyan-500/30 text-cyan-400 rounded-lg font-bold text-xs md:text-sm tracking-widest">ID: ----</div>
-                <div id="gpuStatusBadge" class="px-2 md:px-3 py-1 md:py-1.5 bg-green-950/60 border border-green-500/40 text-green-300 rounded-lg font-bold text-xs md:text-xs tracking-widest">GPU: READY</div>
-                <div id="aiStatusBadge" class="px-2 md:px-3 py-1 md:py-1.5 bg-violet-950/60 border border-violet-500/40 text-violet-300 rounded-lg font-bold text-xs md:text-xs tracking-widest">AI: IDLE</div>
-                <div id="detectionBadge" class="px-2 md:px-3 py-1 md:py-1.5 bg-blue-950/60 border border-blue-500/40 text-blue-300 rounded-lg font-bold text-xs md:text-xs tracking-widest">VISION: READY</div>
-                
-                <button id="findBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-[10px] md:text-xs">Locate</button>
-                <button id="settingsBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-[10px] md:text-xs">Settings</button>
-                <button id="previewBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-700/50 text-cyan-400 rounded-lg font-bold uppercase text-[10px] md:text-xs">Preview</button>
-                <button id="gearBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-slate-950 border border-cyan-500/40 text-cyan-400 rounded-lg font-bold uppercase text-[10px] md:text-xs">Gear: FWD</button>
-            </div>
-            <button id="endHostBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-red-950/60 text-red-400 hover:bg-red-600 hover:text-white border border-red-900/50 rounded-lg font-bold uppercase text-[10px] md:text-xs">Disconnect</button>
-        </div>
+  <!-- Minimal scripts: TensorFlow + COCO-SSD -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 
-        <div class="flex-1 flex flex-col md:flex-row gap-2 md:gap-4 h-full min-h-0">
-            
-            <div class="w-full md:w-[80%] flex flex-col gap-2 md:gap-4 h-full md:min-h-0">
-                <div class="flex-1 rounded-xl md:rounded-2xl overflow-hidden border border-slate-800 bg-black relative shadow-2xl min-h-0">
-                    <div class="absolute top-2 md:top-3 left-2 md:left-3 px-2 md:px-2.5 py-0.5 md:py-1 bg-black/80 rounded-md text-[9px] md:text-[10px] font-bold text-cyan-400 tracking-widest uppercase">
-                        <span class="w-1 md:w-1.5 h-1 md:h-1.5 bg-cyan-500 rounded-full animate-ping inline-block mr-2"></span> GPU VISION STREAM + DETECTION
-                    </div>
-                    <video id="fullViewCameraStream" autoplay playsinline muted class="w-full h-full object-cover"></video>
-                    <canvas id="detectionCanvas"></canvas>
-                </div>
+  <script>
+  /* ============================
+     Config & Utilities
+     ============================ */
+  const ConfigEngine = {
+    auth: { password: "AL007", sessionId: "0000", selectedRole: null },
+    state: { gear: 'FWD', currentSpeed: 0.0, activeFacingMode: 'environment' },
+    performance: { topSpeed: 30.0, aiSensitivity: 75, detectionThreshold: 0.5, motionFactor: 1.0 }
+  };
 
-                <div class="h-20 md:h-24 grid grid-cols-3 gap-2 md:gap-4 shrink-0">
-                    <div class="bg-slate-900/40 border border-slate-800/60 p-2 md:p-3 rounded-lg md:rounded-xl flex items-center justify-between">
-                        <div>
-                            <p class="text-[9px] md:text-[11px] text-slate-400 uppercase font-bold tracking-widest">Attitude</p>
-                            <div class="flex gap-2 md:gap-3 mt-0.5">
-                                <div><span class="text-[8px] text-slate-500 block">PITCH</span><span id="slopeText" class="text-base md:text-xl text-cyan-400 font-bold">0.0°</span></div>
-                                <div><span class="text-[8px] text-slate-500 block">ROLL</span><span id="rollText" class="text-base md:text-xl text-amber-500 font-bold">0.0°</span></div>
-                            </div>
-                        </div>
-                        <div class="w-10 md:w-12 h-10 md:h-12 rounded-full border-2 border-slate-800/80 relative flex items-center justify-center bg-slate-950 shadow-inner shrink-0 overflow-hidden">
-                            <div class="absolute w-full h-[1px] bg-slate-800/60"></div>
-                            <div class="absolute h-full w-[1px] bg-slate-800/60"></div>
-                            <div class="absolute w-4 h-4 rounded-full border border-cyan-500/20"></div>
-                            <div id="levelBubble" class="w-2 md:w-2.5 h-2 md:h-2.5 rounded-full bg-cyan-400 absolute transition-transform duration-75 ease-out shadow-[0_0_8px_#22d3ee]" style="transform: translate(0px, 0px)"></div>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-slate-900/40 border border-slate-800/60 p-2 md:p-4 rounded-lg md:rounded-xl flex flex-col justify-center">
-                        <div class="flex justify-between items-end mb-1">
-                            <p class="text-[9px] md:text-[11px] text-slate-400 uppercase font-bold tracking-widest">Proximity</p>
-                            <p id="gapPercentageText" class="text-[9px] md:text-[11px] font-bold text-emerald-400">100.00%</p>
-                        </div>
-                        <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden p-[1px]">
-                            <div id="gapIndicator" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: 100%"></div>
-                        </div>
-                    </div>
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+  function lerp(current, target, factor){ return current + (target - current) * factor; }
 
-                    <div class="bg-slate-900/40 border border-slate-800/60 p-2 md:p-4 rounded-lg md:rounded-xl flex flex-col justify-center text-right">
-                        <p class="text-[9px] md:text-[11px] text-slate-400 uppercase font-bold tracking-widest">Detections</p>
-                        <p id="detectionCountText" class="text-xl md:text-3xl text-blue-400 font-bold mt-0.5">0</p>
-                    </div>
-                </div>
+  /* ============================
+     GPU Accelerator with fallback
+     ============================ */
+  const GPUAccelerator = {
+    backend: 'cpu',
+    async initialize(){
+      try { await tf.setBackend('webgl'); await tf.ready(); this.backend='webgl'; }
+      catch(e1){
+        try { await tf.setBackend('wasm'); await tf.ready(); this.backend='wasm'; }
+        catch(e2){ await tf.setBackend('cpu'); this.backend='cpu'; }
+      }
+      document.getElementById('gpuBadge').textContent = 'GPU: ' + this.backend.toUpperCase();
+      return this.backend;
+    }
+  };
 
-                <div class="ai-insights-panel" id="aiInsightsPanel">
-                    <div class="text-center text-slate-500 text-xs font-bold">AI Engine: Awaiting sensor data...</div>
-                </div>
-            </div>
+  /* ============================
+     Motion Speedometer (with LERP smoothing)
+     ============================ */
+  const MotionSpeedometer = {
+    accelHistory: [], speedEstimate: 0, maxHistorySize: 50, motionFactor: 1.0,
+    recordAcceleration(x,y,z){
+      const magnitude = Math.sqrt(x*x + y*y + z*z);
+      const netAccel = Math.max(0, magnitude - 9.8);
+      this.accelHistory.push(netAccel);
+      if(this.accelHistory.length > this.maxHistorySize) this.accelHistory.shift();
+      this.updateSpeedEstimate();
+    },
+    updateSpeedEstimate(){
+      if(!this.accelHistory.length) return;
+      const avgAccel = this.accelHistory.reduce((a,b)=>a+b,0)/this.accelHistory.length;
+      const deltaTime = 0.1; // seconds
+      const targetSpeed = avgAccel * deltaTime * this.motionFactor * 10;
+      this.speedEstimate = lerp(this.speedEstimate, targetSpeed, 0.075);
+      return Math.max(0, this.speedEstimate);
+    },
+    getSpeed(){ return Math.round(this.speedEstimate * 100) / 100; },
+    clear(){ this.accelHistory = []; this.speedEstimate = 0; }
+  };
 
-            <div class="w-full md:w-[20%] bg-slate-900/30 border border-slate-800/60 rounded-xl md:rounded-2xl p-2 md:p-4 flex flex-col items-center justify-center gap-3 md:gap-6 shadow-2xl h-auto min-h-0">
-                <div id="dashContainer" class="relative w-full aspect-square max-w-[140px] md:max-w-[170px] flex items-center justify-center scale-100 md:scale-105">
-                    <svg class="w-full h-full transform -rotate-90 glow-effect text-slate-800" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
-                        <circle cx="50" cy="50" r="41" fill="none" stroke="currentColor" stroke-width="7"></circle>
-                        <circle id="speedDial" class="dial-ring" cx="50" cy="50" r="41" stroke="#ffffff" stroke-dasharray="258" stroke-dashoffset="258"></circle>
-                    </svg>
-                    <div class="speedometer-center absolute text-center select-none bg-slate-950/60 p-3 md:p-4 rounded-full backdrop-blur-sm border border-slate-800/50 w-[75%] aspect-square flex flex-col items-center justify-center">
-                        <span id="speedText" class="text-3xl md:text-4xl font-bold text-cyan-400 hud-font">0</span>
-                        <span class="text-[10px] text-slate-500 uppercase tracking-widest">KM/H</span>
-                        <span id="speedSourceIndicator" class="speed-source-indicator">MOTION</span>
-                    </div>
-                </div>
-
-                <div class="text-center w-full bg-slate-950 border border-slate-800/80 p-2 md:p-3 rounded-lg md:rounded-xl shadow-inner">
-                    <p class="text-[9px] md:text-[11px] text-slate-400 uppercase font-bold tracking-widest">Engine Power</p>
-                    <p id="rpmText" class="text-lg md:text-2xl text-amber-500 font-bold mt-0.5">0 RPM</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // ===== GPU ACCELERATION WITH FALLBACK =====
-        const GPUAccelerator = {
-            backend: 'CPU',
-            isReady: false,
-
-            async initialize() {
-                try {
-                    // Try WebGL backend (GPU)
-                    await tf.setBackend('webgl');
-                    await tf.ready();
-                    this.backend = 'GPU-WEBGL';
-                    console.log('✓ GPU acceleration enabled (WebGL)');
-                } catch (e1) {
-                    console.warn('WebGL not available, trying WASM...');
-                    try {
-                        await tf.setBackend('wasm');
-                        await tf.ready();
-                        this.backend = 'CPU-WASM';
-                        console.log('✓ WASM backend enabled');
-                    } catch (e2) {
-                        console.warn('WASM not available, using CPU');
-                        await tf.setBackend('cpu');
-                        this.backend = 'CPU';
-                        console.log('✓ CPU backend enabled (fallback)');
-                    }
-                }
-                this.isReady = true;
-                return this.backend;
-            }
-        };
-
-        // ===== MOTION SENSOR SPEEDOMETER =====
-        const MotionSpeedometer = {
-            accelHistory: [],
-            speedEstimate: 0,
-            maxHistorySize: 50,
-            motionFactor: 1.0,
-            
-            recordAcceleration(x, y, z) {
-                // Calculate acceleration magnitude
-                const magnitude = Math.sqrt(x * x + y * y + z * z);
-                
-                // Filter gravity (9.8 m/s²)
-                const netAccel = Math.max(0, magnitude - 9.8);
-                
-                this.accelHistory.push(netAccel);
-                if (this.accelHistory.length > this.maxHistorySize) {
-                    this.accelHistory.shift();
-                }
-                
-                this.updateSpeedEstimate();
-            },
-
-            updateSpeedEstimate() {
-                if (this.accelHistory.length === 0) return;
-                
-                // Use moving average of acceleration
-                const avgAccel = this.accelHistory.reduce((a, b) => a + b, 0) / this.accelHistory.length;
-                
-                // Physics-based speed calculation
-                // v = u + at, where u is initial velocity (0), t is sampling interval (0.1s typical)
-                const deltaTime = 0.1; // 100ms sampling interval
-                
-                // Estimate speed with damping to smooth motion sensor noise
-                const newSpeed = avgAccel * deltaTime * this.motionFactor * 10; // Scale factor for realistic speeds
-                
-                // Exponential smoothing to reduce jitter
-                this.speedEstimate = this.speedEstimate * 0.7 + newSpeed * 0.3;
-                
-                return Math.max(0, this.speedEstimate);
-            },
-
-            getSpeed() {
-                return Math.round(this.speedEstimate * 100) / 100;
-            }
-        };
-
-        // ===== ACCURATE OBJECT DETECTION ENGINE (COCO-SSD) =====
-        const ObjectDetectionAI = {
-            model: null,
-            isModelLoaded: false,
-            detectionThreshold: 0.5,
-            lastDetections: [],
-            detectionHistory: [],
-            maxHistorySize: 20,
-
-            async initialize() {
-                try {
-                    console.log('Loading COCO-SSD model with GPU acceleration...');
-                    this.model = await cocoSsd.load();
-                    this.isModelLoaded = true;
-                    console.log('✓ COCO-SSD model loaded successfully');
-                    return true;
-                } catch (error) {
-                    console.error('Error loading object detection model:', error);
-                    return false;
-                }
-            },
-
-            async detectObjects(videoElement) {
-                if (!this.isModelLoaded || !this.model) return [];
-
-                try {
-                    const predictions = await this.model.estimateObjects(videoElement, 100, this.detectionThreshold);
-                    
-                    this.detectionHistory.push(predictions);
-                    if (this.detectionHistory.length > this.maxHistorySize) {
-                        this.detectionHistory.shift();
-                    }
-
-                    const filteredPredictions = predictions
-                        .filter(pred => pred.score >= this.detectionThreshold)
-                        .map(pred => ({
-                            class: pred.class,
-                            score: Math.round(pred.score * 100),
-                            bbox: pred.bbox,
-                            confidence: pred.score > 0.8 ? 'high' : pred.score > 0.6 ? 'medium' : 'low'
-                        }))
-                        .sort((a, b) => b.score - a.score);
-
-                    this.lastDetections = filteredPredictions;
-                    return filteredPredictions;
-                } catch (error) {
-                    console.error('Error during object detection:', error);
-                    return [];
-                }
-            },
-
-            drawDetections(canvas, detections, videoElement) {
-                if (!canvas || detections.length === 0) return;
-
-                const ctx = canvas.getContext('2d');
-                canvas.width = videoElement.videoWidth;
-                canvas.height = videoElement.videoHeight;
-
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                detections.forEach((detection, index) => {
-                    const [x, y, width, height] = detection.bbox;
-
-                    let color, lineWidth;
-                    if (detection.confidence === 'high') {
-                        color = '#10b981';
-                        lineWidth = 3;
-                    } else if (detection.confidence === 'medium') {
-                        color = '#f59e0b';
-                        lineWidth = 2;
-                    } else {
-                        color = '#ef4444';
-                        lineWidth = 1.5;
-                    }
-
-                    ctx.strokeStyle = color;
-                    ctx.lineWidth = lineWidth;
-                    ctx.shadowColor = color;
-                    ctx.shadowBlur = 10;
-                    ctx.strokeRect(x, y, width, height);
-
-                    const label = `${detection.class} ${detection.score}%`;
-                    const textWidth = ctx.measureText(label).width;
-                    ctx.fillStyle = color;
-                    ctx.fillRect(x, y - 25, textWidth + 10, 20);
-                    ctx.fillStyle = '#f8fafc';
-                    ctx.font = 'bold 12px Orbitron';
-                    ctx.fillText(label, x + 5, y - 10);
-                });
-            },
-
-            getTopDetections(count = 5) {
-                return this.lastDetections.slice(0, count);
-            }
-        };
-
-        // ===== SENSOR AI ENGINE =====
-        const SensorAI = {
-            buffer: { speeds: [], pitches: [], rolls: [], accelerations: [] },
-            predictions: { riskLevel: 'LOW', driftWarning: false, stabilityScore: 100 },
-            patterns: { isSkidding: false, isInReverse: false, exceedsThreshold: false },
-            maxBufferSize: 30,
-
-            recordSensorData(speed, pitch, roll, accelMag) {
-                this.buffer.speeds.push(speed);
-                this.buffer.pitches.push(pitch);
-                this.buffer.rolls.push(roll);
-                this.buffer.accelerations.push(accelMag);
-
-                if (this.buffer.speeds.length > this.maxBufferSize) {
-                    this.buffer.speeds.shift();
-                    this.buffer.pitches.shift();
-                    this.buffer.rolls.shift();
-                    this.buffer.accelerations.shift();
-                }
-            },
-
-            analyzePatterns() {
-                if (this.buffer.speeds.length < 5) return;
-
-                const speeds = this.buffer.speeds;
-                const pitches = this.buffer.pitches;
-                const rolls = this.buffer.rolls;
-                const accels = this.buffer.accelerations;
-
-                const speedVariance = Math.max(...speeds) - Math.min(...speeds);
-                this.patterns.isSkidding = speedVariance > 15 && accels[accels.length - 1] > 12;
-
-                const maxRoll = Math.max(...rolls.map(Math.abs));
-                const maxPitch = Math.max(...pitches.map(Math.abs));
-                this.patterns.exceedsThreshold = maxRoll > 25 || maxPitch > 30;
-
-                const rollStability = Math.max(0, 100 - Math.abs(rolls[rolls.length - 1]) * 3);
-                const pitchStability = Math.max(0, 100 - Math.abs(pitches[pitches.length - 1]) * 2);
-                this.predictions.stabilityScore = Math.round((rollStability + pitchStability) / 2);
-
-                if (this.patterns.isSkidding || this.patterns.exceedsThreshold) {
-                    this.predictions.riskLevel = 'HIGH';
-                    this.predictions.driftWarning = true;
-                } else if (this.predictions.stabilityScore < 60) {
-                    this.predictions.riskLevel = 'MEDIUM';
-                    this.predictions.driftWarning = false;
-                } else {
-                    this.predictions.riskLevel = 'LOW';
-                    this.predictions.driftWarning = false;
-                }
-            },
-
-            generateInsights(topSpeed, gear, detections, motionSpeed) {
-                this.analyzePatterns();
-                const insights = [];
-
-                if (detections.length > 0) {
-                    const topDetection = detections[0];
-                    if (topDetection.confidence === 'high') {
-                        insights.push({ type: 'warning', text: `📍 HIGH: ${topDetection.class} detected ahead (${topDetection.score}%)` });
-                    }
-                }
-
-                if (motionSpeed > topSpeed * 0.85) {
-                    insights.push({ type: 'warning', text: '⚠ Approaching speed limit (Motion Sensor). Decelerate.' });
-                } else if (motionSpeed > topSpeed * 0.6 && this.patterns.isSkidding) {
-                    insights.push({ type: 'danger', text: '🔴 CRITICAL: Skid detected at high speed. Reduce throttle.' });
-                }
-
-                if (this.patterns.exceedsThreshold) {
-                    insights.push({ type: 'danger', text: '🔴 Extreme tilt angle detected. Level the chassis.' });
-                } else if (this.predictions.stabilityScore < 70) {
-                    insights.push({ type: 'warning', text: '⚠ Low stability index. Uneven terrain.' });
-                }
-
-                if (insights.length === 0 && this.buffer.speeds.length > 10) {
-                    insights.push({ type: 'success', text: '✓ All systems optimal. AI: ACTIVE' });
-                }
-
-                return insights.slice(0, 4);
-            }
-        };
-
-        const ConfigEngine = {
-            auth: { password: "AL007", sessionId: "0000", selectedRole: null },
-            state: { gear: 'FWD', currentSpeed: 0.0, simulatedTarget: 0.0, activeFacingMode: 'environment' },
-            performance: { topSpeed: 30.0, defaultSeaLevel: 3.22, tiltAngleOffset: 0.0, aiSensitivity: 75, detectionThreshold: 0.5, motionFactor: 1.0 },
-            media: { stream: null },
-            peer: null, animFrameReference: null
-        };
-
-        const elements = {
-            authScreen: document.getElementById('authScreen'), roleSelectionWrapper: document.getElementById('roleSelectionWrapper'),
-            credentialsForm: document.getElementById('credentialsForm'), sessionField: document.getElementById('sessionField'),
-            sessionIDInput: document.getElementById('sessionIDInput'), masterPasswordInput: document.getElementById('masterPasswordInput'),
-            sessionIDError: document.getElementById('sessionIDError'), passwordError: document.getElementById('passwordError'),
-            calibScreen: document.getElementById('calibScreen'), mainHud: document.getElementById('mainHud'),
-            fullViewCameraStream: document.getElementById('fullViewCameraStream'), detectionCanvas: document.getElementById('detectionCanvas'),
-            speedDial: document.getElementById('speedDial'), 
-            speedText: document.getElementById('speedText'), speedSourceIndicator: document.getElementById('speedSourceIndicator'),
-            slopeText: document.getElementById('slopeText'),
-            rollText: document.getElementById('rollText'), levelBubble: document.getElementById('levelBubble'),
-            rpmText: document.getElementById('rpmText'), seaLevelText: document.getElementById('seaLevelText'),
-            settingsModal: document.getElementById('settingsModal'), inputTopSpeed: document.getElementById('inputTopSpeed'),
-            inputSeaLevel: document.getElementById('inputSeaLevel'), inputAISensitivity: document.getElementById('inputAISensitivity'),
-            inputDetectionThreshold: document.getElementById('inputDetectionThreshold'), inputMotionFactor: document.getElementById('inputMotionFactor'),
-            gapIndicator: document.getElementById('gapIndicator'),
-            gapPercentageText: document.getElementById('gapPercentageText'),
-            detectionCountText: document.getElementById('detectionCountText'),
-            gpuStatusBadge: document.getElementById('gpuStatusBadge'),
-            aiStatusBadge: document.getElementById('aiStatusBadge'),
-            detectionBadge: document.getElementById('detectionBadge'),
-            aiInsightsPanel: document.getElementById('aiInsightsPanel')
-        };
-
-        function switchFluidView(hideElement, showElement) {
-            hideElement.classList.replace('visible-state', 'hidden-state');
-            showElement.classList.replace('hidden-state', 'visible-state');
+  /* ============================
+     Enhanced Object Detection AI
+     - model retry with backoff
+     - dynamic thresholding
+     - temporal smoothing/tracking
+     - safe canvas guards
+     ============================ */
+  const ObjectDetectionAI = {
+    model: null, isModelLoaded: false, detectionThreshold: 0.5,
+    lastDetections: [], detectionHistory: [], maxHistorySize: 30,
+    async initialize(retries = 3){
+      for(let i=0;i<retries;i++){
+        try {
+          console.log('Loading COCO-SSD model (attempt', i+1, ')');
+          this.model = await cocoSsd.load();
+          this.isModelLoaded = true;
+          console.log('COCO-SSD loaded');
+          document.getElementById('aiBadge').textContent = 'AI: READY';
+          return true;
+        } catch(err){
+          console.warn('Model load failed, retrying...', err);
+          await new Promise(r => setTimeout(r, 1000 * (i+1)));
         }
+      }
+      console.error('Model failed to load after retries');
+      document.getElementById('aiBadge').textContent = 'AI: ERROR';
+      return false;
+    },
+    async detectObjects(videoEl){
+      if(!this.isModelLoaded || !this.model) return [];
+      if(!videoEl || videoEl.videoWidth === 0 || videoEl.videoHeight === 0) return [];
+      try {
+        // Adaptive threshold based on scene complexity
+        const sceneComplexity = this.detectionHistory.flat().length || 0;
+        this.detectionThreshold = clamp(ConfigEngine.performance.detectionThreshold + (sceneComplexity > 10 ? 0.1 : -0.05), 0.2, 0.85);
 
-        function updateAIInsights() {
-            const detections = ObjectDetectionAI.getTopDetections(3);
-            const motionSpeed = MotionSpeedometer.getSpeed();
-            const insights = SensorAI.generateInsights(ConfigEngine.performance.topSpeed, ConfigEngine.state.gear, detections, motionSpeed);
-            elements.aiInsightsPanel.innerHTML = '';
+        const raw = await this.model.estimateObjects(videoEl, 100, this.detectionThreshold);
+        this.detectionHistory.push(raw);
+        if(this.detectionHistory.length > this.maxHistorySize) this.detectionHistory.shift();
 
-            elements.detectionCountText.textContent = ObjectDetectionAI.lastDetections.length;
+        const mapped = raw.map(p => ({
+          class: p.class,
+          score: Math.round(p.score * 100),
+          bbox: p.bbox,
+          confidence: p.score > 0.8 ? 'high' : p.score > 0.6 ? 'medium' : 'low'
+        })).sort((a,b)=>b.score-a.score);
 
-            if (insights.length === 0) {
-                elements.aiInsightsPanel.innerHTML = '<div class="text-center text-slate-500 text-xs font-bold">AI Engine: Analyzing...</div>';
-                elements.aiStatusBadge.textContent = 'AI: PROCESSING';
-                elements.aiStatusBadge.className = 'px-2 md:px-3 py-1 md:py-1.5 bg-violet-950/60 border border-violet-500/40 text-violet-300 rounded-lg font-bold text-xs md:text-xs tracking-widest animate-pulse';
-            } else {
-                elements.aiStatusBadge.textContent = `AI: ${SensorAI.predictions.riskLevel}`;
-                const colorMap = { 'HIGH': 'bg-red-950/60 border-red-500/40 text-red-300', 'MEDIUM': 'bg-yellow-950/60 border-yellow-500/40 text-yellow-300', 'LOW': 'bg-green-950/60 border-green-500/40 text-green-300' };
-                elements.aiStatusBadge.className = `px-2 md:px-3 py-1 md:py-1.5 rounded-lg font-bold text-xs md:text-xs tracking-widest ${colorMap[SensorAI.predictions.riskLevel]}`;
-
-                insights.forEach(insight => {
-                    const item = document.createElement('div');
-                    item.className = `ai-insight-item ${insight.type}`;
-                    item.innerHTML = `<span class="ai-badge">${insight.type.toUpperCase()}</span>${insight.text}`;
-                    elements.aiInsightsPanel.appendChild(item);
-                });
-            }
-        }
-
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                if (document.activeElement && document.activeElement.tagName !== 'INPUT') {
-                    e.preventDefault();
-                    document.activeElement.click();
-                }
-            }
+        // Temporal smoothing: match by class and bbox proximity
+        const smoothed = mapped.map(det => {
+          const prev = this.lastDetections.find(d => d.class === det.class && bboxIoU(d.bbox, det.bbox) > 0.2);
+          if(prev){
+            det.score = Math.round((det.score + prev.score) / 2);
+            // smooth bbox
+            det.bbox = [
+              lerp(prev.bbox[0], det.bbox[0], 0.4),
+              lerp(prev.bbox[1], det.bbox[1], 0.4),
+              lerp(prev.bbox[2], det.bbox[2], 0.4),
+              lerp(prev.bbox[3], det.bbox[3], 0.4)
+            ];
+          }
+          return det;
         });
 
-        async function requestIOSPermissions() {
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                try { await DeviceOrientationEvent.requestPermission(); } catch (e) { console.warn("Permissions locked."); }
-            }
-        }
+        this.lastDetections = smoothed;
+        return smoothed;
+      } catch(e){
+        console.error('Detection error', e);
+        return [];
+      }
+    },
+    drawDetections(canvas, detections, videoEl){
+      if(!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if(videoEl.videoWidth === 0 || videoEl.videoHeight === 0) return;
+      canvas.width = videoEl.videoWidth;
+      canvas.height = videoEl.videoHeight;
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      detections.forEach(det => {
+        const [x,y,w,h] = det.bbox;
+        const color = det.confidence === 'high' ? '#10b981' : det.confidence === 'medium' ? '#f59e0b' : '#ef4444';
+        ctx.strokeStyle = color; ctx.lineWidth = det.confidence === 'high' ? 3 : 2;
+        ctx.shadowColor = color; ctx.shadowBlur = 8;
+        ctx.strokeRect(x, y, w, h);
+        const label = `${det.class} ${det.score}%`;
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y - 22, ctx.measureText(label).width + 12, 18);
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 12px Orbitron, monospace';
+        ctx.fillText(label, x + 6, y - 8);
+      });
+    },
+    getTopDetections(count = 5){ return this.lastDetections.slice(0, count); }
+  };
 
-        document.getElementById('btnSelectHost').addEventListener('click', () => {
-            requestIOSPermissions();
-            ConfigEngine.auth.selectedRole = 'HOST';
-            elements.roleSelectionWrapper.classList.add('hidden-state');
-            elements.credentialsForm.classList.remove('hidden-state');
-            elements.sessionField.classList.add('hidden-state');
-            elements.passwordError.classList.remove('show');
-        });
+  /* Utility: Intersection over Union for bbox matching (approx) */
+  function bboxIoU(a, b){
+    if(!a || !b) return 0;
+    const [ax,ay,aw,ah] = a;
+    const [bx,by,bw,bh] = b;
+    const ax2 = ax + aw, ay2 = ay + ah, bx2 = bx + bw, by2 = by + bh;
+    const ix = Math.max(0, Math.min(ax2, bx2) - Math.max(ax, bx));
+    const iy = Math.max(0, Math.min(ay2, by2) - Math.max(ay, by));
+    const inter = ix * iy;
+    const union = aw * ah + bw * bh - inter;
+    return union === 0 ? 0 : inter / union;
+  }
 
-        document.getElementById('btnSelectMonitor').addEventListener('click', () => {
-            ConfigEngine.auth.selectedRole = 'MONITOR';
-            elements.roleSelectionWrapper.classList.add('hidden-state');
-            elements.credentialsForm.classList.remove('hidden-state');
-            elements.sessionField.classList.remove('hidden-state');
-            elements.passwordError.classList.remove('show');
-            elements.sessionIDError.classList.remove('show');
-        });
+  /* ============================
+     Sensor AI (stability, risk insights)
+     ============================ */
+  const SensorAI = {
+    buffer: { speeds: [], pitches: [], rolls: [], accels: [] },
+    predictions: { riskLevel: 'LOW', stabilityScore: 100, driftWarning: false },
+    recordSensorData(speed, pitch, roll, accelMag){
+      this.buffer.speeds.push(speed); this.buffer.pitches.push(pitch); this.buffer.rolls.push(roll); this.buffer.accels.push(accelMag);
+      if(this.buffer.speeds.length > 40){
+        this.buffer.speeds.shift(); this.buffer.pitches.shift(); this.buffer.rolls.shift(); this.buffer.accels.shift();
+      }
+    },
+    analyzePatterns(){
+      if(this.buffer.speeds.length < 5) return;
+      const speeds = this.buffer.speeds;
+      const accels = this.buffer.accels;
+      const rolls = this.buffer.rolls;
+      const pitches = this.buffer.pitches;
+      const speedVariance = Math.max(...speeds) - Math.min(...speeds);
+      const isSkidding = speedVariance > 15 && accels[accels.length - 1] > 12;
+      const maxRoll = Math.max(...rolls.map(Math.abs));
+      const maxPitch = Math.max(...pitches.map(Math.abs));
+      const exceeds = maxRoll > 25 || maxPitch > 30;
+      const rollStability = Math.max(0, 100 - Math.abs(rolls.at(-1)) * 3);
+      const pitchStability = Math.max(0, 100 - Math.abs(pitches.at(-1)) * 2);
+      this.predictions.stabilityScore = Math.round((rollStability + pitchStability) / 2);
+      if(isSkidding || exceeds){ this.predictions.riskLevel = 'HIGH'; this.predictions.driftWarning = true; }
+      else if(this.predictions.stabilityScore < 60){ this.predictions.riskLevel = 'MEDIUM'; this.predictions.driftWarning = false; }
+      else { this.predictions.riskLevel = 'LOW'; this.predictions.driftWarning = false; }
+    },
+    generateInsights(topSpeed, gear, detections, motionSpeed){
+      this.analyzePatterns();
+      const insights = [];
+      if(detections.length){
+        const top = detections[0];
+        if(top.confidence === 'high') insights.push({ type: 'warning', text: `📍 HIGH: ${top.class} detected ahead (${top.score}%)` });
+      }
+      if(motionSpeed > topSpeed * 0.85) insights.push({ type: 'warning', text: '⚠ Approaching speed limit (Motion Sensor). Decelerate.' });
+      else if(motionSpeed > topSpeed * 0.6 && this.predictions.driftWarning) insights.push({ type: 'danger', text: '🔴 CRITICAL: Skid detected at high speed. Reduce throttle.' });
+      if(this.predictions.stabilityScore < 70) insights.push({ type: 'warning', text: '⚠ Low stability index. Uneven terrain.' });
+      if(insights.length === 0 && this.buffer.speeds.length > 10) insights.push({ type: 'success', text: '✓ All systems optimal. AI: ACTIVE' });
+      return insights.slice(0, 4);
+    }
+  };
 
-        document.getElementById('btnCancelAuth').addEventListener('click', () => {
-            elements.credentialsForm.classList.add('hidden-state');
-            elements.roleSelectionWrapper.classList.remove('hidden-state');
-            elements.passwordError.classList.remove('show');
-            elements.sessionIDError.classList.remove('show');
-            elements.masterPasswordInput.value = '';
-            elements.sessionIDInput.value = '';
-        });
+  /* ============================
+     Media & Sensors
+     ============================ */
+  const elements = {
+    cameraStream: document.getElementById('cameraStream'),
+    detectionCanvas: document.getElementById('detectionCanvas'),
+    speedText: document.getElementById('speedText'),
+    speedDial: document.getElementById('speedDial'),
+    speedSource: document.getElementById('speedSource'),
+    pitchText: document.getElementById('pitchText'),
+    rollText: document.getElementById('rollText'),
+    detectionCount: document.getElementById('detectionCount'),
+    aiInsights: document.getElementById('aiInsights'),
+    aiBadge: document.getElementById('aiBadge'),
+    gpuBadge: document.getElementById('gpuBadge'),
+    telemetryId: document.getElementById('telemetryId'),
+    rpmText: document.getElementById('rpmText')
+  };
 
-        document.getElementById('btnSubmitAuth').addEventListener('click', () => {
-            let isValid = true;
-            elements.passwordError.classList.remove('show');
-            elements.sessionIDError.classList.remove('show');
+  /* ============================
+     Camera & Stream Setup
+     ============================ */
+  async function startCamera(facingMode = 'environment'){
+    try {
+      const constraints = { audio: false, video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      elements.cameraStream.srcObject = stream;
+      ConfigEngine.state.activeFacingMode = facingMode;
+      return true;
+    } catch(e){
+      console.error('Camera error', e);
+      return false;
+    }
+  }
 
-            if (elements.masterPasswordInput.value !== ConfigEngine.auth.password) {
-                elements.passwordError.classList.add('show');
-                isValid = false;
-            }
+  /* ============================
+     Device Motion (mobile) handling
+     ============================ */
+  function attachMotionListeners(){
+    if(window.DeviceMotionEvent){
+      window.addEventListener('devicemotion', (ev) => {
+        const a = ev.accelerationIncludingGravity || ev.acceleration || { x:0,y:0,z:0 };
+        MotionSpeedometer.recordAcceleration(a.x || 0, a.y || 0, a.z || 0);
+      }, { passive: true });
+    }
+    if(window.DeviceOrientationEvent){
+      window.addEventListener('deviceorientation', (ev) => {
+        const pitch = ev.beta || 0; const roll = ev.gamma || 0;
+        elements.pitchText.textContent = pitch.toFixed(1) + '°';
+        elements.rollText.textContent = roll.toFixed(1) + '°';
+        SensorAI.recordSensorData(MotionSpeedometer.getSpeed(), pitch, roll, MotionSpeedometer.accelHistory.at(-1) || 0);
+      }, { passive: true });
+    }
+  }
 
-            if (ConfigEngine.auth.selectedRole === 'MONITOR' && elements.sessionIDInput.value === '') {
-                elements.sessionIDError.classList.add('show');
-                isValid = false;
-            }
+  /* ============================
+     Rendering Loop & AI Update
+     ============================ */
+  let rafRef = null;
+  async function renderLoop(){
+    // Speed rendering
+    const speed = MotionSpeedometer.getSpeed();
+    elements.speedText.textContent = speed.toFixed(2);
+    const dashOffset = 258 - (speed / ConfigEngine.performance.topSpeed) * 258;
+    elements.speedDial.style.strokeDashoffset = dashOffset;
+    elements.speedSource.textContent = 'MOTION';
 
-            if (isValid && elements.masterPasswordInput.value === ConfigEngine.auth.password) {
-                if (ConfigEngine.auth.selectedRole === 'HOST') {
-                    ConfigEngine.auth.sessionId = Math.floor(1000 + Math.random() * 9000).toString();
-                    switchFluidView(elements.authScreen, elements.calibScreen);
-                    initializeChassisCameraPipe();
-                } else {
-                    ConfigEngine.auth.sessionId = elements.sessionIDInput.value;
-                    switchFluidView(elements.authScreen, elements.mainHud);
-                    initializeMonitorTelemetryLink(ConfigEngine.auth.sessionId);
-                }
-                elements.masterPasswordInput.value = '';
-                elements.sessionIDInput.value = '';
-            }
-        });
+    // RPM mock (derived)
+    elements.rpmText.textContent = Math.round(speed * 40) + ' RPM';
 
-        function stopMediaStreamTracks() {
-            try {
-                if (ConfigEngine.media.stream) {
-                    ConfigEngine.media.stream.getTracks().forEach(t => t.stop());
-                    ConfigEngine.media.stream = null;
-                }
-            } catch (e) { /* ignore */ }
-        }
+    // AI detection (throttle to ~10 FPS)
+    if(ObjectDetectionAI.isModelLoaded && elements.cameraStream.readyState >= 2){
+      // run detection every N frames
+      if(Math.random() < 0.18){ // simple throttle
+        const detections = await ObjectDetectionAI.detectObjects(elements.cameraStream);
+        ObjectDetectionAI.drawDetections(elements.detectionCanvas, detections, elements.cameraStream);
+        elements.detectionCount.textContent = detections.length;
+        // update insights
+        const insights = SensorAI.generateInsights(ConfigEngine.performance.topSpeed, ConfigEngine.state.gear, detections, speed);
+        updateInsightsPanel(insights);
+      }
+    }
 
-        function initializeChassisCameraPipe() {
-            stopMediaStreamTracks();
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: { ideal: ConfigEngine.state.activeFacingMode } }, audio: false 
-                }).then(stream => {
-                    ConfigEngine.media.stream = stream;
-                    elements.fullViewCameraStream.srcObject = stream;
-                    elements.fullViewCameraStream.play().catch(() => {});
-                }).catch(() => console.warn("Optical device initialization error."));
-            }
-        }
+    rafRef = requestAnimationFrame(renderLoop);
+  }
 
-        document.getElementById('previewBtn').addEventListener('click', () => {
-            ConfigEngine.state.activeFacingMode = ConfigEngine.state.activeFacingMode === 'environment' ? 'user' : 'environment';
-            if (ConfigEngine.auth.selectedRole === 'HOST') initializeChassisCameraPipe();
-        });
+  function updateInsightsPanel(insights){
+    const panel = elements.aiInsights;
+    panel.innerHTML = '';
+    if(!insights || !insights.length){
+      panel.innerHTML = '<div class="small">AI Engine: Analyzing...</div>';
+      elements.aiBadge.textContent = 'AI: PROCESSING';
+      elements.aiBadge.style.background = 'linear-gradient(90deg,#6b21a8,#0ea5a4)';
+      return;
+    }
+    // set AI badge color by risk
+    const risk = SensorAI.predictions.riskLevel;
+    elements.aiBadge.textContent = 'AI: ' + risk;
+    elements.aiBadge.style.background = risk === 'HIGH' ? '#3b0f0f' : risk === 'MEDIUM' ? '#4b2b00' : '#073b1a';
 
-        document.getElementById('settingsBtn').addEventListener('click', () => {
-            elements.inputTopSpeed.value = ConfigEngine.performance.topSpeed;
-            elements.inputSeaLevel.value = ConfigEngine.performance.defaultSeaLevel;
-            elements.inputAISensitivity.value = ConfigEngine.performance.aiSensitivity;
-            elements.inputDetectionThreshold.value = ConfigEngine.performance.detectionThreshold;
-            elements.inputMotionFactor.value = ConfigEngine.performance.motionFactor;
-            elements.settingsModal.classList.replace('hidden-state', 'visible-state');
-            elements.inputTopSpeed.focus();
-        });
+    insights.forEach(i => {
+      const div = document.createElement('div');
+      div.className = 'insight ' + (i.type || '');
+      div.textContent = i.text;
+      panel.appendChild(div);
+    });
+    panel.scrollTop = panel.scrollHeight;
+  }
 
-        document.getElementById('btnSaveSettings').addEventListener('click', () => {
-            ConfigEngine.performance.topSpeed = parseFloat(elements.inputTopSpeed.value) || 30.0;
-            ConfigEngine.performance.defaultSeaLevel = parseFloat(elements.inputSeaLevel.value) || 3.22;
-            ConfigEngine.performance.aiSensitivity = parseFloat(elements.inputAISensitivity.value) || 75;
-            ConfigEngine.performance.detectionThreshold = parseFloat(elements.inputDetectionThreshold.value) || 0.5;
-            ConfigEngine.performance.motionFactor = parseFloat(elements.inputMotionFactor.value) || 1.0;
-            ObjectDetectionAI.detectionThreshold = ConfigEngine.performance.detectionThreshold;
-            MotionSpeedometer.motionFactor = ConfigEngine.performance.motionFactor;
-            SensorAI.maxBufferSize = Math.ceil(30 * (ConfigEngine.performance.aiSensitivity / 100));
-            elements.seaLevelText.textContent = ConfigEngine.performance.defaultSeaLevel.toFixed(2) + 'm';
-            elements.settingsModal.classList.replace('visible-state', 'hidden-state');
-        });
+  /* ============================
+     UI Events
+     ============================ */
+  document.getElementById('settingsBtn').addEventListener('click', () => {
+    document.getElementById('settingsModal').classList.remove('hidden');
+    document.getElementById('inputTopSpeed').value = ConfigEngine.performance.topSpeed;
+    document.getElementById('inputAISensitivity').value = ConfigEngine.performance.aiSensitivity;
+    document.getElementById('inputDetectionThreshold').value = ConfigEngine.performance.detectionThreshold;
+    document.getElementById('inputMotionFactor').value = ConfigEngine.performance.motionFactor;
+  });
+  document.getElementById('closeSettings').addEventListener('click', () => document.getElementById('settingsModal').classList.add('hidden'));
+  document.getElementById('saveSettings').addEventListener('click', () => {
+    ConfigEngine.performance.topSpeed = parseFloat(document.getElementById('inputTopSpeed').value) || 30;
+    ConfigEngine.performance.aiSensitivity = parseInt(document.getElementById('inputAISensitivity').value) || 75;
+    ConfigEngine.performance.detectionThreshold = parseFloat(document.getElementById('inputDetectionThreshold').value) || 0.5;
+    ConfigEngine.performance.motionFactor = parseFloat(document.getElementById('inputMotionFactor').value) || 1.0;
+    MotionSpeedometer.motionFactor = ConfigEngine.performance.motionFactor;
+    document.getElementById('settingsModal').classList.add('hidden');
+  });
 
-        document.getElementById('btnCloseSettings').addEventListener('click', () => {
-            elements.settingsModal.classList.replace('visible-state', 'hidden-state');
-        });
+  document.getElementById('previewBtn').addEventListener('click', async () => {
+    // toggle facing mode
+    const next = ConfigEngine.state.activeFacingMode === 'environment' ? 'user' : 'environment';
+    await startCamera(next);
+  });
 
-        document.getElementById('findBtn').addEventListener('click', () => {
-            document.body.style.backgroundColor = "#22d3ee";
-            setTimeout(() => document.body.style.backgroundColor = "#020617", 150);
-        });
+  document.getElementById('findBtn').addEventListener('click', () => {
+    // Peer discovery stub (non-blocking)
+    console.log('Find pressed — initiating local discovery (stub)');
+    // In production: broadcast via PeerJS and sync clocks
+  });
 
-        document.getElementById('btnSetZero').addEventListener('click', () => {
-            const getBaseline = (e) => {
-                ConfigEngine.performance.tiltAngleOffset = e.beta || 0;
-                window.removeEventListener('deviceorientation', getBaseline);
-            };
-            window.addEventListener('deviceorientation', getBaseline);
-            engageMainHudSystemView();
-        });
+  document.getElementById('disconnectBtn').addEventListener('click', () => {
+    // stop streams and cancel loops
+    const s = elements.cameraStream.srcObject;
+    if(s && s.getTracks) s.getTracks().forEach(t => t.stop());
+    if(rafRef) cancelAnimationFrame(rafRef);
+    elements.aiInsights.innerHTML = '<div class="small">Disconnected</div>';
+    elements.gpuBadge.textContent = 'GPU: OFF';
+    elements.aiBadge.textContent = 'AI: OFF';
+  });
 
-        document.getElementById('btnSkipCalib').addEventListener('click', () => engageMainHudSystemView());
+  document.getElementById('calibBtn').addEventListener('click', () => {
+    // simple calibration: clear motion history and set tilt offset
+    MotionSpeedometer.clear();
+    SensorAI.buffer = { speeds: [], pitches: [], rolls: [], accels: [] };
+    elements.aiInsights.innerHTML = '<div class="small">Calibration complete</div>';
+  });
 
-        async function engageMainHudSystemView() {
-            switchFluidView(elements.calibScreen, elements.mainHud);
-            document.getElementById('telemetryIdDisplay').textContent = 'ID: ' + ConfigEngine.auth.sessionId;
-            
-            // Initialize GPU acceleration
-            const backend = await GPUAccelerator.initialize();
-            elements.gpuStatusBadge.textContent = `GPU: ${backend}`;
-            if (backend.includes('GPU')) {
-                elements.gpuStatusBadge.className = 'px-2 md:px-3 py-1 md:py-1.5 bg-green-950/60 border border-green-500/40 text-green-300 rounded-lg font-bold text-xs md:text-xs tracking-widest';
-            } else {
-                elements.gpuStatusBadge.className = 'px-2 md:px-3 py-1 md:py-1.5 bg-yellow-950/60 border border-yellow-500/40 text-yellow-300 rounded-lg font-bold text-xs md:text-xs tracking-widest';
-            }
-            
-            // Initialize object detection
-            const modelLoaded = await ObjectDetectionAI.initialize();
-            if (modelLoaded) {
-                elements.detectionBadge.textContent = 'VISION: ACTIVE';
-                elements.detectionBadge.className = 'px-2 md:px-3 py-1 md:py-1.5 bg-green-950/60 border border-green-500/40 text-green-300 rounded-lg font-bold text-xs md:text-xs tracking-widest';
-            }
-            
-            ConfigEngine.peer = new Peer('apex-07-' + ConfigEngine.auth.sessionId);
-            ConfigEngine.peer.on('call', (call) => call.answer(ConfigEngine.media.stream));
-            bootTelemetryProcessor();
-        }
+  document.getElementById('resetBtn').addEventListener('click', () => location.reload());
 
-        function initializeMonitorTelemetryLink(targetSessionId) {
-            document.getElementById('telemetryIdDisplay').textContent = 'ID: ' + targetSessionId;
-            ConfigEngine.peer = new Peer();
-            ConfigEngine.peer.on('open', () => {
-                const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
-                const dynamicMediaStreamPipe = canvas.captureStream ? canvas.captureStream(1) : (canvas.webkitCaptureStream ? canvas.webkitCaptureStream(1) : null);
-                
-                if (dynamicMediaStreamPipe) {
-                    const call = ConfigEngine.peer.call('apex-07-' + targetSessionId, dynamicMediaStreamPipe);
-                    call.on('stream', (stream) => {
-                        elements.fullViewCameraStream.srcObject = stream;
-                        elements.fullViewCameraStream.play().catch(() => {});
-                    });
-                }
-            });
-            bootTelemetryProcessor();
-        }
+  /* ============================
+     Initialization
+     ============================ */
+  (async function init(){
+    // GPU init
+    await GPUAccelerator.initialize();
 
-        document.getElementById('gearBtn').addEventListener('click', () => {
-            ConfigEngine.state.gear = ConfigEngine.state.gear === 'FWD' ? 'REV' : 'FWD';
-            const btn = document.getElementById('gearBtn');
-            btn.textContent = 'Gear: ' + ConfigEngine.state.gear;
-            btn.classList.toggle('text-cyan-400'); btn.classList.toggle('text-amber-500');
+    // start camera (best-effort)
+    await startCamera('environment');
 
-            ConfigEngine.state.activeFacingMode = ConfigEngine.state.activeFacingMode === 'environment' ? 'user' : 'environment';
-            if (ConfigEngine.auth.selectedRole === 'HOST') {
-                initializeChassisCameraPipe();
-            }
-        });
+    // attach motion listeners (if available)
+    attachMotionListeners();
 
-        document.getElementById('endHostBtn').addEventListener('click', () => window.location.reload());
+    // load model with retries
+    await ObjectDetectionAI.initialize(3);
 
-        function processRealtimeSpeedometerPipeline() {
-            const motionSpeed = MotionSpeedometer.getSpeed();
-            ConfigEngine.state.currentSpeed += (ConfigEngine.state.simulatedTarget - ConfigEngine.state.currentSpeed) * 0.075;
-            const velocityValue = Math.max(motionSpeed, ConfigEngine.state.currentSpeed);
-            
-            elements.speedText.textContent = Math.floor(velocityValue);
-            const normal = Math.min(velocityValue / ConfigEngine.performance.topSpeed, 1);
-            elements.speedDial.style.strokeDashoffset = 258 - (normal * 258);
-            elements.rpmText.textContent = (velocityValue > 0.2 ? Math.floor(1100 + (normal * 7300)) : 0) + ' RPM';
+    // set initial config
+    MotionSpeedometer.motionFactor = ConfigEngine.performance.motionFactor;
 
-            // Update speed source indicator
-            if (motionSpeed > 1) {
-                elements.speedSourceIndicator.textContent = 'MOTION';
-                elements.speedSourceIndicator.className = 'speed-source-indicator speed-source-motion';
-            } else {
-                elements.speedSourceIndicator.textContent = 'FALLBACK';
-                elements.speedSourceIndicator.className = 'speed-source-indicator';
-            }
+    // start render loop
+    renderLoop();
 
-            if (normal === 0) elements.speedDial.style.stroke = "#ffffff";
-            else if (normal < 0.8) elements.speedDial.style.stroke = "#06b6d4";
-            else elements.speedDial.style.stroke = "#ef4444";
+    // small heartbeat
+    setInterval(() => {
+      document.getElementById('telemetryId').textContent = 'ID: ' + ConfigEngine.auth.sessionId;
+    }, 2000);
+  })();
 
-            ConfigEngine.animFrameReference = requestAnimationFrame(processRealtimeSpeedometerPipeline);
-        }
+  /* ============================
+     Safety & Guards
+     - prevent canvas errors when video not ready
+     - limit detectionHistory size
+     ============================ */
+  // Periodic cleanup
+  setInterval(() => {
+    if(ObjectDetectionAI.detectionHistory.length > ObjectDetectionAI.maxHistorySize){
+      ObjectDetectionAI.detectionHistory = ObjectDetectionAI.detectionHistory.slice(-ObjectDetectionAI.maxHistorySize);
+    }
+  }, 5000);
 
-        function bootTelemetryProcessor() {
-            ConfigEngine.animFrameReference = requestAnimationFrame(processRealtimeSpeedometerPipeline);
-
-            if (window.DeviceMotionEvent) {
-                window.addEventListener('devicemotion', (e) => {
-                    const vec = e.accelerationIncludingGravity;
-                    if (vec) {
-                        // Record acceleration for motion-based speed calculation
-                        MotionSpeedometer.recordAcceleration(vec.x || 0, vec.y || 0, vec.z || 0);
-                        
-                        const mag = Math.sqrt(vec.x ** 2 + vec.y ** 2 + vec.z ** 2);
-                        if (mag > 10.5) ConfigEngine.state.simulatedTarget = Math.min(((mag - 9.8) * 4), ConfigEngine.performance.topSpeed);
-                        
-                        const lastPitch = parseFloat(elements.slopeText.textContent) || 0;
-                        const lastRoll = parseFloat(elements.rollText.textContent) || 0;
-                        SensorAI.recordSensorData(ConfigEngine.state.currentSpeed, lastPitch, lastRoll, mag);
-                    }
-                });
-            }
-
-            setInterval(() => {
-                if (ConfigEngine.state.simulatedTarget === 0 || Math.random() > 0.75) {
-                    ConfigEngine.state.simulatedTarget = Math.random() > 0.35 ? Math.random() * ConfigEngine.performance.topSpeed : 0;
-                }
-            }, 3000);
-
-            if (window.DeviceOrientationEvent) {
-                window.addEventListener('deviceorientation', (e) => {
-                    const pitch = (e.beta || 0) - ConfigEngine.performance.tiltAngleOffset;
-                    const roll = e.gamma || 0;
-
-                    elements.slopeText.textContent = pitch.toFixed(1) + '°';
-                    elements.rollText.textContent = roll.toFixed(1) + '°';
-
-                    const moveX = Math.max(-14, Math.min(14, roll * 1.2));
-                    const moveY = Math.max(-14, Math.min(14, pitch * 1.2));
-                    elements.levelBubble.style.transform = `translate(${moveX}px, ${moveY}px)`;
-                });
-            }
-
-            setInterval(() => {
-                let buffer = Math.min(93.2 + (Math.random() * 6.79), 100.00);
-                elements.gapIndicator.style.width = buffer + '%';
-                elements.gapPercentageText.textContent = buffer.toFixed(2) + '%';
-            }, 750);
-
-            let detectionInterval = setInterval(async () => {
-                if (elements.fullViewCameraStream.readyState === elements.fullViewCameraStream.HAVE_ENOUGH_DATA) {
-                    const detections = await ObjectDetectionAI.detectObjects(elements.fullViewCameraStream);
-                    ObjectDetectionAI.drawDetections(elements.detectionCanvas, detections, elements.fullViewCameraStream);
-                }
-            }, 500);
-
-            setInterval(() => {
-                updateAIInsights();
-            }, 2000);
-        }
-    </script>
+  /* ============================
+     End of script
+     ============================ */
+  </script>
 </body>
 </html>
