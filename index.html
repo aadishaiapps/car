@@ -8,6 +8,9 @@
     <title>APEX-07 // FLUID TELEMETRY OS</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <!-- TensorFlow.js and COCO-SSD for accurate object detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Oswald:wght@500;700&display=swap');
         
@@ -61,7 +64,7 @@
 
         /* Speedometer and dashboard layout fixes to prevent overlap */
         #dashContainer {
-            padding: 6px; /* reserve space around the gauge */
+            padding: 6px;
             box-sizing: border-box;
         }
 
@@ -70,7 +73,7 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            z-index: 50; /* keep center text above the svg but below UI overlays */
+            z-index: 50;
             pointer-events: none;
             display: flex;
             flex-direction: column;
@@ -82,18 +85,100 @@
             background-clip: padding-box;
         }
 
-        /* Ensure svg dial sits behind the center block */
         #dashContainer svg { position: relative; z-index: 10; }
 
-        /* Small-screen adjustments so the speedometer never overlaps other controls */
         @media (max-width: 420px) {
             #dashContainer { max-width: 120px; }
             .speedometer-center { width: 66%; height: 66%; }
             .speedometer-center #speedText { font-size: 1.4rem; }
         }
 
-        /* Level bubble bounding to avoid overflow */
         #levelBubble { transform: translate(0px, 0px); }
+
+        /* AI Insights Panel */
+        .ai-insights-panel {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            max-height: 140px;
+            overflow-y: auto;
+        }
+
+        .ai-insight-item {
+            font-size: 0.75rem;
+            line-height: 1.4;
+            margin-bottom: 0.5rem;
+            padding: 0.4rem 0.6rem;
+            border-left: 2px solid;
+            border-left-color: #06b6d4;
+            background: rgba(2, 6, 23, 0.4);
+            border-radius: 0.25rem;
+        }
+
+        .ai-insight-item.warning {
+            border-left-color: #f59e0b;
+            color: #fcd34d;
+        }
+
+        .ai-insight-item.danger {
+            border-left-color: #ef4444;
+            color: #fca5a5;
+        }
+
+        .ai-insight-item.success {
+            border-left-color: #10b981;
+            color: #a7f3d0;
+        }
+
+        .ai-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.65rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-right: 0.4rem;
+        }
+
+        /* Detection Canvas Overlay */
+        #detectionCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 40;
+        }
+
+        .detection-label {
+            position: absolute;
+            background: rgba(6, 182, 212, 0.9);
+            color: #f8fafc;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            z-index: 45;
+            pointer-events: none;
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
+        }
+
+        .detection-label.high-confidence {
+            background: rgba(16, 185, 129, 0.9);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+
+        .detection-label.medium-confidence {
+            background: rgba(245, 158, 11, 0.9);
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+        }
+
+        .detection-label.low-confidence {
+            background: rgba(239, 68, 68, 0.9);
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
 
     </style>
 </head>
@@ -111,6 +196,14 @@
                     <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Base Sea Level (m)</label>
                     <input id="inputSeaLevel" type="number" step="0.01" tabindex="0" class="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center font-bold tracking-widest outline-none">
                 </div>
+                <div>
+                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">AI Sensitivity (0-100)</label>
+                    <input id="inputAISensitivity" type="number" min="0" max="100" tabindex="0" class="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center font-bold tracking-widest outline-none">
+                </div>
+                <div>
+                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Detection Threshold (0-1)</label>
+                    <input id="inputDetectionThreshold" type="number" min="0" max="1" step="0.05" tabindex="0" class="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center font-bold tracking-widest outline-none" value="0.5">
+                </div>
                 <button id="btnSaveSettings" tabindex="0" class="w-full py-3 bg-cyan-700 hover:bg-cyan-600 text-white font-bold uppercase tracking-widest rounded mt-2">Save Parameters</button>
                 <button id="btnCloseSettings" tabindex="0" class="w-full py-2 bg-transparent text-slate-500 hover:text-slate-300 font-bold uppercase text-xs tracking-widest">Cancel</button>
             </div>
@@ -120,29 +213,29 @@
     <div id="authScreen" class="visible-state h-screen w-full flex flex-col justify-center items-center p-6 z-50 absolute inset-0 bg-slate-950">
         <div class="w-full max-w-sm p-8 bg-slate-900/40 border border-cyan-500/30 rounded-2xl shadow-2xl text-center backdrop-blur-lg">
             <h1 class="text-5xl font-bold text-cyan-400 mb-1 tracking-wider glow-effect">APEX-07</h1>
-            <p class="text-[11px] uppercase text-cyan-500/60 tracking-[0.3em] mb-8">Chassis Telemetry Core</p>
+            <p class="text-[11px] uppercase text-cyan-500/60 tracking-[0.3em] mb-8">Chassis Telemetry Core + AI Engine + Object Detection</p>
             
             <div id="roleSelectionWrapper" class="space-y-4">
-                <button id="btnSelectHost" tabindex="0" class="w-full py-4 bg-cyan-700 hover:bg-cyan-600 text-white font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg text-lg">Reg[...][/button>
-                <button id="btnSelectMonitor" tabindex="0" class="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold uppercase tracking-widest rounded-xl">Monitor</button>
+                <button id="btnSelectHost" tabindex="0" class="w-full py-4 bg-cyan-700 hover:bg-cyan-600 text-white font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg text-lg">Register Host</button>
+                <button id="btnSelectMonitor" tabindex="0" class="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold uppercase tracking-widest rounded-xl">Monitor Link</button>
             </div>
 
             <div id="credentialsForm" class="hidden-state text-left space-y-4">
                 <div id="sessionField" class="hidden-state">
                     <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Target Transceiver ID</label>
-                    <input id="sessionIDInput" type="text" tabindex="0" placeholder="0000" maxlength="4" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-xl text-cyan-400 text-center font-bold">
+                    <input id="sessionIDInput" type="text" tabindex="0" placeholder="0000" maxlength="4" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-xl text-cyan-400 text-center font-bold tracking-widest outline-none">
                     <div id="sessionIDError" class="error-message">Wrong ID</div>
                 </div>
                 <div>
                     <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Master Access Key</label>
-                    <input id="masterPasswordInput" type="password" tabindex="0" placeholder="••••••••" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-xl text-white text-center font-bold">
+                    <input id="masterPasswordInput" type="password" tabindex="0" placeholder="••••••••" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-xl text-white text-center font-bold tracking-widest outline-none">
                     <div id="passwordError" class="error-message">Wrong Password</div>
                 </div>
                 <button id="btnSubmitAuth" tabindex="0" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold uppercase tracking-widest rounded-xl shadow-lg">Authorize Node Link</button>
                 <button id="btnCancelAuth" tabindex="0" class="w-full text-center text-slate-500 text-xs uppercase font-bold hover:text-slate-300 pt-2 tracking-widest">Back to Terminal</button>
             </div>
 
-            <p class="text-[12px] text-slate-500 font-bold mt-8 tracking-widest border-t border-slate-800/80 pt-4">Created By-Aadish Madhav</p>
+            <p class="text-[12px] text-slate-500 font-bold mt-8 tracking-widest border-t border-slate-800/80 pt-4">Created By-Aadish Madhav | AI-Powered Telemetry + Vision</p>
         </div>
     </div>
 
@@ -152,9 +245,9 @@
             <p class="text-slate-400 text-sm mb-8 tracking-wide">Mount the host device securely inside the chassis bay, then baseline horizontal vectors.</p>
             
             <button id="btnSetZero" tabindex="0" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-xl shadow-lg mb-4 text-lg">Calibrate Surface Zero</button>
-            <button id="btnSkipCalib" tabindex="0" class="w-full py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-bold uppercase tracking-widest">Skip</button>
+            <button id="btnSkipCalib" tabindex="0" class="w-full py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-bold uppercase tracking-widest rounded-xl">Skip Calibration</button>
             
-            <p class="text-xs text-emerald-400 font-bold tracking-widest mt-6 bg-emerald-950/40 py-2 rounded-lg border border-emerald-900/30 uppercase">100% Secure & Robust</p>
+            <p class="text-xs text-emerald-400 font-bold tracking-widest mt-6 bg-emerald-950/40 py-2 rounded-lg border border-emerald-900/30 uppercase">100% Secure & Robust + AI + Vision</p>
         </div>
     </div>
 
@@ -163,13 +256,15 @@
         <div class="flex justify-between items-center bg-slate-900/60 backdrop-blur-md p-2 md:p-3 rounded-lg md:rounded-xl border border-slate-800/80 mb-2 md:mb-4 shadow-xl z-20 shrink-0 flex-wrap gap-2">
             <div class="flex space-x-1 md:space-x-2 items-center flex-wrap">
                 <div id="telemetryIdDisplay" class="px-2 md:px-3 py-1 md:py-1.5 bg-slate-950 border border-cyan-500/30 text-cyan-400 rounded-lg font-bold text-xs md:text-sm tracking-widest">ID: ----</div>
+                <div id="aiStatusBadge" class="px-2 md:px-3 py-1 md:py-1.5 bg-violet-950/60 border border-violet-500/40 text-violet-300 rounded-lg font-bold text-xs md:text-xs tracking-widest">AI: IDLE</div>
+                <div id="detectionBadge" class="px-2 md:px-3 py-1 md:py-1.5 bg-blue-950/60 border border-blue-500/40 text-blue-300 rounded-lg font-bold text-xs md:text-xs tracking-widest">VISION: READY</div>
                 
-                <button id="findBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-[10px]">Find</button>
-                <button id="settingsBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-[10px]">Settings</button>
-                <button id="previewBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-700/50 text-cyan-400 rounded-lg font-bold uppercase text-[10px]">Preview</button>
+                <button id="findBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-[10px] md:text-xs">Locate</button>
+                <button id="settingsBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-[10px] md:text-xs">Settings</button>
+                <button id="previewBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-700/50 text-cyan-400 rounded-lg font-bold uppercase text-[10px] md:text-xs">Preview</button>
                 <button id="gearBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-slate-950 border border-cyan-500/40 text-cyan-400 rounded-lg font-bold uppercase text-[10px] md:text-xs">Gear: FWD</button>
             </div>
-            <button id="endHostBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-red-950/60 text-red-400 hover:bg-red-600 hover:text-white border border-red-900/50 rounded-lg font-bold uppercase text-[10px]">End</button>
+            <button id="endHostBtn" tabindex="0" class="px-2 md:px-4 py-1 md:py-1.5 bg-red-950/60 text-red-400 hover:bg-red-600 hover:text-white border border-red-900/50 rounded-lg font-bold uppercase text-[10px] md:text-xs">Disconnect</button>
         </div>
 
         <div class="flex-1 flex flex-col md:flex-row gap-2 md:gap-4 h-full min-h-0">
@@ -177,9 +272,10 @@
             <div class="w-full md:w-[80%] flex flex-col gap-2 md:gap-4 h-full md:min-h-0">
                 <div class="flex-1 rounded-xl md:rounded-2xl overflow-hidden border border-slate-800 bg-black relative shadow-2xl min-h-0">
                     <div class="absolute top-2 md:top-3 left-2 md:left-3 px-2 md:px-2.5 py-0.5 md:py-1 bg-black/80 rounded-md text-[9px] md:text-[10px] font-bold text-cyan-400 tracking-widest uppercase">
-                        <span class="w-1 md:w-1.5 h-1 md:h-1.5 bg-cyan-500 rounded-full animate-ping inline-block mr-2"></span> FLUID PREVIEW STREAM
+                        <span class="w-1 md:w-1.5 h-1 md:h-1.5 bg-cyan-500 rounded-full animate-ping inline-block mr-2"></span> VISION STREAM + DETECTION
                     </div>
                     <video id="fullViewCameraStream" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                    <canvas id="detectionCanvas"></canvas>
                 </div>
 
                 <div class="h-20 md:h-24 grid grid-cols-3 gap-2 md:gap-4 shrink-0">
@@ -195,7 +291,7 @@
                             <div class="absolute w-full h-[1px] bg-slate-800/60"></div>
                             <div class="absolute h-full w-[1px] bg-slate-800/60"></div>
                             <div class="absolute w-4 h-4 rounded-full border border-cyan-500/20"></div>
-                            <div id="levelBubble" class="w-2 md:w-2.5 h-2 md:h-2.5 rounded-full bg-cyan-400 absolute transition-transform duration-75 ease-out shadow-[0_0_8px_#22d3ee]" style="transform: translate(0px, 0px);"></div>
+                            <div id="levelBubble" class="w-2 md:w-2.5 h-2 md:h-2.5 rounded-full bg-cyan-400 absolute transition-transform duration-75 ease-out shadow-[0_0_8px_#22d3ee]" style="transform: translate(0px, 0px)"></div>
                         </div>
                     </div>
                     
@@ -210,19 +306,27 @@
                     </div>
 
                     <div class="bg-slate-900/40 border border-slate-800/60 p-2 md:p-4 rounded-lg md:rounded-xl flex flex-col justify-center text-right">
-                        <p class="text-[9px] md:text-[11px] text-slate-400 uppercase font-bold tracking-widest">Sea Level</p>
-                        <p id="seaLevelText" class="text-xl md:text-3xl text-slate-100 font-bold mt-0.5">3.22m</p>
+                        <p class="text-[9px] md:text-[11px] text-slate-400 uppercase font-bold tracking-widest">Detections</p>
+                        <p id="detectionCountText" class="text-xl md:text-3xl text-blue-400 font-bold mt-0.5">0</p>
                     </div>
+                </div>
+
+                <!-- AI Insights Panel -->
+                <div class="ai-insights-panel" id="aiInsightsPanel">
+                    <div class="text-center text-slate-500 text-xs font-bold">AI Engine: Awaiting sensor data...</div>
                 </div>
             </div>
 
-            <div class="w-full md:w-[20%] bg-slate-900/30 border border-slate-800/60 rounded-xl md:rounded-2xl p-2 md:p-4 flex flex-col items-center justify-center gap-3 md:gap-6 shadow-2xl h-auto min-h-[220px]">
+            <div class="w-full md:w-[20%] bg-slate-900/30 border border-slate-800/60 rounded-xl md:rounded-2xl p-2 md:p-4 flex flex-col items-center justify-center gap-3 md:gap-6 shadow-2xl h-auto min-h-0">
                 <div id="dashContainer" class="relative w-full aspect-square max-w-[140px] md:max-w-[170px] flex items-center justify-center scale-100 md:scale-105">
                     <svg class="w-full h-full transform -rotate-90 glow-effect text-slate-800" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
                         <circle cx="50" cy="50" r="41" fill="none" stroke="currentColor" stroke-width="7"></circle>
                         <circle id="speedDial" class="dial-ring" cx="50" cy="50" r="41" stroke="#ffffff" stroke-dasharray="258" stroke-dashoffset="258"></circle>
                     </svg>
-                    <div class="speedometer-center absolute text-center select-none bg-slate-950/60 p-3 md:p-4 rounded-full backdrop-blur-sm border border-slate-800/50 w-[75%] aspect-square flex flex-[...]"><div id="speedText" class="text-3xl md:text-5xl font-bold text-white leading-none tracking-tight">0</div><div class="text-[9px] md:text-[11px] text-slate-400 uppercase tracking-widest font-bold mt-1">KM/H</div></div>
+                    <div class="speedometer-center absolute text-center select-none bg-slate-950/60 p-3 md:p-4 rounded-full backdrop-blur-sm border border-slate-800/50 w-[75%] aspect-square flex flex-col items-center justify-center">
+                        <span id="speedText" class="text-3xl md:text-4xl font-bold text-cyan-400 hud-font">0</span>
+                        <span class="text-[10px] text-slate-500 uppercase tracking-widest">KM/H</span>
+                    </div>
                 </div>
 
                 <div class="text-center w-full bg-slate-950 border border-slate-800/80 p-2 md:p-3 rounded-lg md:rounded-xl shadow-inner">
@@ -234,10 +338,222 @@
     </div>
 
     <script>
+        // ===== ACCURATE OBJECT DETECTION ENGINE (COCO-SSD) =====
+        const ObjectDetectionAI = {
+            model: null,
+            isModelLoaded: false,
+            detectionThreshold: 0.5,
+            lastDetections: [],
+            detectionHistory: [],
+            maxHistorySize: 20,
+
+            async initialize() {
+                try {
+                    console.log('Loading COCO-SSD model...');
+                    this.model = await cocoSsd.load();
+                    this.isModelLoaded = true;
+                    console.log('COCO-SSD model loaded successfully');
+                    return true;
+                } catch (error) {
+                    console.error('Error loading object detection model:', error);
+                    return false;
+                }
+            },
+
+            async detectObjects(videoElement) {
+                if (!this.isModelLoaded || !this.model) return [];
+
+                try {
+                    const predictions = await this.model.estimateObjects(videoElement, 100, this.detectionThreshold);
+                    
+                    // Smooth detections using history
+                    this.detectionHistory.push(predictions);
+                    if (this.detectionHistory.length > this.maxHistorySize) {
+                        this.detectionHistory.shift();
+                    }
+
+                    // Filter and score predictions
+                    const filteredPredictions = predictions
+                        .filter(pred => pred.score >= this.detectionThreshold)
+                        .map(pred => ({
+                            class: pred.class,
+                            score: Math.round(pred.score * 100),
+                            bbox: pred.bbox,
+                            confidence: pred.score > 0.8 ? 'high' : pred.score > 0.6 ? 'medium' : 'low'
+                        }))
+                        .sort((a, b) => b.score - a.score);
+
+                    this.lastDetections = filteredPredictions;
+                    return filteredPredictions;
+                } catch (error) {
+                    console.error('Error during object detection:', error);
+                    return [];
+                }
+            },
+
+            drawDetections(canvas, detections, videoElement) {
+                if (!canvas || detections.length === 0) return;
+
+                const ctx = canvas.getContext('2d');
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw bounding boxes
+                detections.forEach((detection, index) => {
+                    const [x, y, width, height] = detection.bbox;
+
+                    // Color based on confidence
+                    let color, lineWidth;
+                    if (detection.confidence === 'high') {
+                        color = '#10b981'; // Green
+                        lineWidth = 3;
+                    } else if (detection.confidence === 'medium') {
+                        color = '#f59e0b'; // Orange
+                        lineWidth = 2;
+                    } else {
+                        color = '#ef4444'; // Red
+                        lineWidth = 1.5;
+                    }
+
+                    // Draw box
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = lineWidth;
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 10;
+                    ctx.strokeRect(x, y, width, height);
+
+                    // Draw label
+                    const label = `${detection.class} ${detection.score}%`;
+                    const textWidth = ctx.measureText(label).width;
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y - 25, textWidth + 10, 20);
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.font = 'bold 12px Orbitron';
+                    ctx.fillText(label, x + 5, y - 10);
+                });
+            },
+
+            getTopDetections(count = 5) {
+                return this.lastDetections.slice(0, count);
+            }
+        };
+
+        // ===== SENSOR AI ENGINE =====
+        const SensorAI = {
+            buffer: { speeds: [], pitches: [], rolls: [], accelerations: [] },
+            predictions: { riskLevel: 'LOW', driftWarning: false, stabilityScore: 100 },
+            patterns: { isSkidding: false, isInReverse: false, exceedsThreshold: false },
+            maxBufferSize: 30,
+
+            recordSensorData(speed, pitch, roll, accelMag) {
+                this.buffer.speeds.push(speed);
+                this.buffer.pitches.push(pitch);
+                this.buffer.rolls.push(roll);
+                this.buffer.accelerations.push(accelMag);
+
+                if (this.buffer.speeds.length > this.maxBufferSize) {
+                    this.buffer.speeds.shift();
+                    this.buffer.pitches.shift();
+                    this.buffer.rolls.shift();
+                    this.buffer.accelerations.shift();
+                }
+            },
+
+            analyzePatterns() {
+                if (this.buffer.speeds.length < 5) return;
+
+                const speeds = this.buffer.speeds;
+                const pitches = this.buffer.pitches;
+                const rolls = this.buffer.rolls;
+                const accels = this.buffer.accelerations;
+
+                const speedVariance = Math.max(...speeds) - Math.min(...speeds);
+                this.patterns.isSkidding = speedVariance > 15 && accels[accels.length - 1] > 12;
+
+                const maxRoll = Math.max(...rolls.map(Math.abs));
+                const maxPitch = Math.max(...pitches.map(Math.abs));
+                this.patterns.exceedsThreshold = maxRoll > 25 || maxPitch > 30;
+
+                const rollStability = Math.max(0, 100 - Math.abs(rolls[rolls.length - 1]) * 3);
+                const pitchStability = Math.max(0, 100 - Math.abs(pitches[pitches.length - 1]) * 2);
+                this.predictions.stabilityScore = Math.round((rollStability + pitchStability) / 2);
+
+                if (this.patterns.isSkidding || this.patterns.exceedsThreshold) {
+                    this.predictions.riskLevel = 'HIGH';
+                    this.predictions.driftWarning = true;
+                } else if (this.predictions.stabilityScore < 60) {
+                    this.predictions.riskLevel = 'MEDIUM';
+                    this.predictions.driftWarning = false;
+                } else {
+                    this.predictions.riskLevel = 'LOW';
+                    this.predictions.driftWarning = false;
+                }
+            },
+
+            generateInsights(topSpeed, gear, detections) {
+                this.analyzePatterns();
+                const insights = [];
+
+                // Object detection insights
+                if (detections.length > 0) {
+                    const topDetection = detections[0];
+                    if (topDetection.confidence === 'high') {
+                        insights.push({ type: 'warning', text: `📍 HIGH: ${topDetection.class} detected ahead (${topDetection.score}% confidence)` });
+                    } else if (topDetection.confidence === 'medium') {
+                        insights.push({ type: 'warning', text: `⚠ MEDIUM: ${topDetection.class} detected (${topDetection.score}% confidence)` });
+                    }
+                }
+
+                if (this.buffer.speeds.length > 0) {
+                    const currentSpeed = this.buffer.speeds[this.buffer.speeds.length - 1];
+                    const speedPercent = (currentSpeed / topSpeed) * 100;
+                    
+                    if (speedPercent > 85) {
+                        insights.push({ type: 'warning', text: '⚠ Approaching speed limit. Consider deceleration.' });
+                    } else if (currentSpeed > topSpeed * 0.6 && this.patterns.isSkidding) {
+                        insights.push({ type: 'danger', text: '🔴 CRITICAL: Skid detected at high speed. Reduce throttle.' });
+                    }
+                }
+
+                if (this.patterns.exceedsThreshold) {
+                    insights.push({ type: 'danger', text: '🔴 Extreme tilt angle detected. Level the chassis.' });
+                } else if (this.predictions.stabilityScore < 70) {
+                    insights.push({ type: 'warning', text: '⚠ Low stability index. Uneven terrain detected.' });
+                }
+
+                if (this.predictions.driftWarning) {
+                    insights.push({ type: 'danger', text: '🔴 Drift warning activated. Adjust course immediately.' });
+                }
+
+                if (this.buffer.accelerations.length > 0) {
+                    const lastAccel = this.buffer.accelerations[this.buffer.accelerations.length - 1];
+                    if (lastAccel > 13) {
+                        insights.push({ type: 'warning', text: '⚠ High acceleration detected. Smooth your inputs.' });
+                    }
+                }
+
+                if (gear === 'REV' && this.buffer.speeds.length > 5) {
+                    const speedTrend = this.buffer.speeds[this.buffer.speeds.length - 1] - this.buffer.speeds[this.buffer.speeds.length - 5];
+                    if (speedTrend < -8) {
+                        insights.push({ type: 'success', text: '✓ Reverse maneuver in progress. Maintaining control.' });
+                    }
+                }
+
+                if (insights.length === 0 && this.buffer.speeds.length > 10) {
+                    insights.push({ type: 'success', text: '✓ All systems optimal. AI: ACTIVE' });
+                }
+
+                return insights.slice(0, 4);
+            }
+        };
+
         const ConfigEngine = {
             auth: { password: "AL007", sessionId: "0000", selectedRole: null },
             state: { gear: 'FWD', currentSpeed: 0.0, simulatedTarget: 0.0, activeFacingMode: 'environment' },
-            performance: { topSpeed: 30.0, defaultSeaLevel: 3.22, tiltAngleOffset: 0.0 },
+            performance: { topSpeed: 30.0, defaultSeaLevel: 3.22, tiltAngleOffset: 0.0, aiSensitivity: 75, detectionThreshold: 0.5 },
             media: { stream: null },
             peer: null, animFrameReference: null
         };
@@ -248,13 +564,20 @@
             sessionIDInput: document.getElementById('sessionIDInput'), masterPasswordInput: document.getElementById('masterPasswordInput'),
             sessionIDError: document.getElementById('sessionIDError'), passwordError: document.getElementById('passwordError'),
             calibScreen: document.getElementById('calibScreen'), mainHud: document.getElementById('mainHud'),
-            fullViewCameraStream: document.getElementById('fullViewCameraStream'), speedDial: document.getElementById('speedDial'), 
+            fullViewCameraStream: document.getElementById('fullViewCameraStream'), detectionCanvas: document.getElementById('detectionCanvas'),
+            speedDial: document.getElementById('speedDial'), 
             speedText: document.getElementById('speedText'), slopeText: document.getElementById('slopeText'),
             rollText: document.getElementById('rollText'), levelBubble: document.getElementById('levelBubble'),
             rpmText: document.getElementById('rpmText'), seaLevelText: document.getElementById('seaLevelText'),
             settingsModal: document.getElementById('settingsModal'), inputTopSpeed: document.getElementById('inputTopSpeed'),
-            inputSeaLevel: document.getElementById('inputSeaLevel'), gapIndicator: document.getElementById('gapIndicator'),
-            gapPercentageText: document.getElementById('gapPercentageText')
+            inputSeaLevel: document.getElementById('inputSeaLevel'), inputAISensitivity: document.getElementById('inputAISensitivity'),
+            inputDetectionThreshold: document.getElementById('inputDetectionThreshold'),
+            gapIndicator: document.getElementById('gapIndicator'),
+            gapPercentageText: document.getElementById('gapPercentageText'),
+            detectionCountText: document.getElementById('detectionCountText'),
+            aiStatusBadge: document.getElementById('aiStatusBadge'),
+            detectionBadge: document.getElementById('detectionBadge'),
+            aiInsightsPanel: document.getElementById('aiInsightsPanel')
         };
 
         function switchFluidView(hideElement, showElement) {
@@ -262,7 +585,31 @@
             showElement.classList.replace('hidden-state', 'visible-state');
         }
 
-        // --- HARDWARE INTERACTION OVERRIDES (TV / LAPTOP) ---
+        function updateAIInsights() {
+            const detections = ObjectDetectionAI.getTopDetections(3);
+            const insights = SensorAI.generateInsights(ConfigEngine.performance.topSpeed, ConfigEngine.state.gear, detections);
+            elements.aiInsightsPanel.innerHTML = '';
+
+            elements.detectionCountText.textContent = ObjectDetectionAI.lastDetections.length;
+
+            if (insights.length === 0) {
+                elements.aiInsightsPanel.innerHTML = '<div class="text-center text-slate-500 text-xs font-bold">AI Engine: Analyzing...</div>';
+                elements.aiStatusBadge.textContent = 'AI: PROCESSING';
+                elements.aiStatusBadge.className = 'px-2 md:px-3 py-1 md:py-1.5 bg-violet-950/60 border border-violet-500/40 text-violet-300 rounded-lg font-bold text-xs md:text-xs tracking-widest animate-pulse';
+            } else {
+                elements.aiStatusBadge.textContent = `AI: ${SensorAI.predictions.riskLevel}`;
+                const colorMap = { 'HIGH': 'bg-red-950/60 border-red-500/40 text-red-300', 'MEDIUM': 'bg-yellow-950/60 border-yellow-500/40 text-yellow-300', 'LOW': 'bg-green-950/60 border-green-500/40 text-green-300' };
+                elements.aiStatusBadge.className = `px-2 md:px-3 py-1 md:py-1.5 rounded-lg font-bold text-xs md:text-xs tracking-widest ${colorMap[SensorAI.predictions.riskLevel]}`;
+
+                insights.forEach(insight => {
+                    const item = document.createElement('div');
+                    item.className = `ai-insight-item ${insight.type}`;
+                    item.innerHTML = `<span class="ai-badge">${insight.type.toUpperCase()}</span>${insight.text}`;
+                    elements.aiInsightsPanel.appendChild(item);
+                });
+            }
+        }
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 if (document.activeElement && document.activeElement.tagName !== 'INPUT') {
@@ -272,14 +619,12 @@
             }
         });
 
-        // --- PERMISSION GATEWAY (iOS SENSOR BYPASS) ---
         async function requestIOSPermissions() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 try { await DeviceOrientationEvent.requestPermission(); } catch (e) { console.warn("Permissions locked."); }
             }
         }
 
-        // --- GATEWAY EVENTS ---
         document.getElementById('btnSelectHost').addEventListener('click', () => {
             requestIOSPermissions();
             ConfigEngine.auth.selectedRole = 'HOST';
@@ -337,7 +682,6 @@
             }
         });
 
-        // --- STREAM PROCESSING ---
         function stopMediaStreamTracks() {
             try {
                 if (ConfigEngine.media.stream) {
@@ -362,14 +706,14 @@
 
         document.getElementById('previewBtn').addEventListener('click', () => {
             ConfigEngine.state.activeFacingMode = ConfigEngine.state.activeFacingMode === 'environment' ? 'user' : 'environment';
-            // If host and streaming, re-init camera; otherwise just toggle mode for next init
             if (ConfigEngine.auth.selectedRole === 'HOST') initializeChassisCameraPipe();
         });
 
-        // --- MODERN MODALS SUBSYSTEMS ---
         document.getElementById('settingsBtn').addEventListener('click', () => {
             elements.inputTopSpeed.value = ConfigEngine.performance.topSpeed;
             elements.inputSeaLevel.value = ConfigEngine.performance.defaultSeaLevel;
+            elements.inputAISensitivity.value = ConfigEngine.performance.aiSensitivity;
+            elements.inputDetectionThreshold.value = ConfigEngine.performance.detectionThreshold;
             elements.settingsModal.classList.replace('hidden-state', 'visible-state');
             elements.inputTopSpeed.focus();
         });
@@ -377,6 +721,10 @@
         document.getElementById('btnSaveSettings').addEventListener('click', () => {
             ConfigEngine.performance.topSpeed = parseFloat(elements.inputTopSpeed.value) || 30.0;
             ConfigEngine.performance.defaultSeaLevel = parseFloat(elements.inputSeaLevel.value) || 3.22;
+            ConfigEngine.performance.aiSensitivity = parseFloat(elements.inputAISensitivity.value) || 75;
+            ConfigEngine.performance.detectionThreshold = parseFloat(elements.inputDetectionThreshold.value) || 0.5;
+            ObjectDetectionAI.detectionThreshold = ConfigEngine.performance.detectionThreshold;
+            SensorAI.maxBufferSize = Math.ceil(30 * (ConfigEngine.performance.aiSensitivity / 100));
             elements.seaLevelText.textContent = ConfigEngine.performance.defaultSeaLevel.toFixed(2) + 'm';
             elements.settingsModal.classList.replace('visible-state', 'hidden-state');
         });
@@ -390,7 +738,6 @@
             setTimeout(() => document.body.style.backgroundColor = "#020617", 150);
         });
 
-        // --- ENGINE SYSTEMS TRANSITION ROUTER ---
         document.getElementById('btnSetZero').addEventListener('click', () => {
             const getBaseline = (e) => {
                 ConfigEngine.performance.tiltAngleOffset = e.beta || 0;
@@ -402,9 +749,16 @@
 
         document.getElementById('btnSkipCalib').addEventListener('click', () => engageMainHudSystemView());
 
-        function engageMainHudSystemView() {
+        async function engageMainHudSystemView() {
             switchFluidView(elements.calibScreen, elements.mainHud);
             document.getElementById('telemetryIdDisplay').textContent = 'ID: ' + ConfigEngine.auth.sessionId;
+            
+            // Initialize object detection
+            const modelLoaded = await ObjectDetectionAI.initialize();
+            if (modelLoaded) {
+                elements.detectionBadge.textContent = 'VISION: ACTIVE';
+                elements.detectionBadge.className = 'px-2 md:px-3 py-1 md:py-1.5 bg-green-950/60 border border-green-500/40 text-green-300 rounded-lg font-bold text-xs md:text-xs tracking-widest';
+            }
             
             ConfigEngine.peer = new Peer('apex-07-' + ConfigEngine.auth.sessionId);
             ConfigEngine.peer.on('call', (call) => call.answer(ConfigEngine.media.stream));
@@ -435,9 +789,7 @@
             btn.textContent = 'Gear: ' + ConfigEngine.state.gear;
             btn.classList.toggle('text-cyan-400'); btn.classList.toggle('text-amber-500');
 
-            // Toggle the camera facing mode whenever gear changes (FWD <-> REV)
             ConfigEngine.state.activeFacingMode = ConfigEngine.state.activeFacingMode === 'environment' ? 'user' : 'environment';
-            // If we're hosting (we have a real camera), reinitialize camera with new facing mode
             if (ConfigEngine.auth.selectedRole === 'HOST') {
                 initializeChassisCameraPipe();
             }
@@ -445,7 +797,6 @@
 
         document.getElementById('endHostBtn').addEventListener('click', () => window.location.reload());
 
-        // --- MATH RENDER CONTEXT METRICS ENGINE ---
         function processRealtimeSpeedometerPipeline() {
             ConfigEngine.state.currentSpeed += (ConfigEngine.state.simulatedTarget - ConfigEngine.state.currentSpeed) * 0.075;
             const velocityValue = Math.max(0, ConfigEngine.state.currentSpeed);
@@ -471,6 +822,10 @@
                     if (vec) {
                         const mag = Math.sqrt(vec.x ** 2 + vec.y ** 2 + vec.z ** 2);
                         if (mag > 10.5) ConfigEngine.state.simulatedTarget = Math.min(((mag - 9.8) * 4), ConfigEngine.performance.topSpeed);
+                        
+                        const lastPitch = parseFloat(elements.slopeText.textContent) || 0;
+                        const lastRoll = parseFloat(elements.rollText.textContent) || 0;
+                        SensorAI.recordSensorData(ConfigEngine.state.currentSpeed, lastPitch, lastRoll, mag);
                     }
                 });
             }
@@ -500,6 +855,19 @@
                 elements.gapIndicator.style.width = buffer + '%';
                 elements.gapPercentageText.textContent = buffer.toFixed(2) + '%';
             }, 750);
+
+            // Object detection loop
+            let detectionInterval = setInterval(async () => {
+                if (elements.fullViewCameraStream.readyState === elements.fullViewCameraStream.HAVE_ENOUGH_DATA) {
+                    const detections = await ObjectDetectionAI.detectObjects(elements.fullViewCameraStream);
+                    ObjectDetectionAI.drawDetections(elements.detectionCanvas, detections, elements.fullViewCameraStream);
+                }
+            }, 500);
+
+            // AI Insights update loop
+            setInterval(() => {
+                updateAIInsights();
+            }, 2000);
         }
     </script>
 </body>
