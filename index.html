@@ -1,328 +1,401 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>APEX-07 // RC CAR TELEMETRY</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap');
-        
-        body { font-family: 'Rajdhani', sans-serif; background: #000; color: #fff; overflow: hidden; touch-action: none; user-select: none; }
-        .hud-font { font-family: 'Orbitron', sans-serif; }
-        
-        /* Car Image Background - restricted ONLY to calibration screen */
-        .apex-bg {
-            background-image: url('apex.png');
-            background-size: top;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-color: rgba(0, 0, 0, 0.6);
-            background-blend-mode: darken;
-        }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>APEX-07 // FLUID TELEMETRY OS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Oswald:wght@500;700&display=swap');
+        
+        body { font-family: 'Agency FB', 'Oswald', sans-serif; background: #020617; color: #f8fafc; overflow: hidden; touch-action: none; user-select: none; }
+        .hud-font { font-family: 'Orbitron', sans-serif; }
+        
+        .apex-bg {
+            background-image: url('apex.png');
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+            background-color: rgba(2, 6, 23, 0.7); background-blend-mode: darken;
+        }
 
-        .hidden-state { display: none !important; }
-        .dial-ring { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 0.05s linear, stroke 0.2s ease; }
-        .glow { filter: drop-shadow(0 0 6px currentColor); }
-        .error-msg { color: #ef4444; font-size: 0.8rem; display: none; text-align: left; }
-    </style>
+        .hidden-state { opacity: 0; pointer-events: none; transform: scale(0.95); position: absolute; }
+        .visible-state { opacity: 1; pointer-events: auto; transform: scale(1); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .dial-ring { fill: none; stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 0.1s ease, stroke 0.3s ease; }
+        .glow-effect { filter: drop-shadow(0 0 8px currentColor); }
+        
+        button:focus, input:focus, [tabindex="0"]:focus {
+            outline: 2px solid #06b6d4; outline-offset: 2px;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.6);
+        }
+    </style>
 </head>
-<body class="antialiased bg-slate-950">
+<body class="antialiased">
 
-    <div id="authScreen" class="h-screen w-full flex flex-col justify-center items-center p-6 z-50 absolute inset-0 bg-slate-950">
-        <div class="w-full max-w-sm p-8 bg-slate-900/50 border border-cyan-500/30 rounded-xl shadow-2xl text-center backdrop-blur-md">
-            <h1 class="text-4xl font-black text-cyan-400 mb-1 hud-font tracking-wider glow">APEX-07</h1>
-            <p class="text-[10px] uppercase text-cyan-500/60 tracking-[0.3em] mb-8">RC Car Telemetry System</p>
-            
-            <div id="roleSelectArea" class="space-y-4">
-                <button id="btnSelectHost" class="w-full py-4 bg-cyan-700 hover:bg-cyan-600 text-white font-black uppercase tracking-widest rounded-lg transition-transform active:scale-95 shadow-lg">Register Device as Host</button>
-                <button id="btnSelectMonitor" class="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold uppercase tracking-widest rounded-lg transition-transform active:scale-95 shadow-lg">Connect as Secondary Monitor</button>
-            </div>
+    <div id="settingsModal" class="hidden-state fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300">
+        <div class="bg-slate-900 border border-cyan-500/50 p-6 rounded-xl w-full max-w-sm shadow-2xl">
+            <h3 class="text-2xl font-bold text-cyan-400 tracking-wider mb-4">SYSTEM SETTINGS</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Top Speed Bound (KM/H)</label>
+                    <input id="inputTopSpeed" type="number" tabindex="0" class="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center font-bold tracking-widest outline-none">
+                </div>
+                <div>
+                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Base Sea Level (m)</label>
+                    <input id="inputSeaLevel" type="number" step="0.01" tabindex="0" class="w-full bg-slate-950 border border-slate-700 p-3 rounded text-white text-center font-bold tracking-widest outline-none">
+                </div>
+                <button id="btnSaveSettings" tabindex="0" class="w-full py-3 bg-cyan-700 hover:bg-cyan-600 text-white font-bold uppercase tracking-widest rounded mt-2">Save Parameters</button>
+                <button id="btnCloseSettings" tabindex="0" class="w-full py-2 bg-transparent text-slate-500 hover:text-slate-300 font-bold uppercase text-xs tracking-widest">Cancel</button>
+            </div>
+        </div>
+    </div>
 
-            <div id="credentialArea" class="hidden-state text-left space-y-4">
-                <div id="idInputWrapper" class="hidden-state">
-                    <label class="text-[10px] text-slate-400 uppercase font-black tracking-wider block mb-1">Session Target ID</label>
-                    <input id="sessionIDInput" type="text" placeholder="ENTER 4-DIGIT ID" maxlength="4" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-lg text-cyan-400 text-center font-black tracking-[0.4em] outline-none">
-                </div>
-                <div>
-                    <label class="text-[10px] text-slate-400 uppercase font-black tracking-wider block mb-1">Master Password</label>
-                    <input id="masterPasswordInput" type="password" placeholder="ENTER PASSWORD" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-lg text-white text-center font-bold tracking-widest outline-none">
-                </div>
-                <div id="authErrorMsg" class="error-msg">Credentials invalid.</div>
-                <button id="btnSubmitAuth" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-black uppercase tracking-widest rounded-lg">Verify Link</button>
-                <button id="btnCancelAuth" class="w-full text-center text-slate-500 text-xs uppercase font-bold hover:text-white pt-1">Back</button>
-            </div>
-        </div>
-    </div>
+    <div id="authScreen" class="visible-state h-screen w-full flex flex-col justify-center items-center p-6 z-50 absolute inset-0 bg-slate-950">
+        <div class="w-full max-w-sm p-8 bg-slate-900/40 border border-cyan-500/30 rounded-2xl shadow-2xl text-center backdrop-blur-lg">
+            <h1 class="text-5xl font-bold text-cyan-400 mb-1 tracking-wider glow-effect">APEX-07</h1>
+            <p class="text-[11px] uppercase text-cyan-500/60 tracking-[0.3em] mb-8">Chassis Telemetry Core</p>
+            
+            <div id="roleSelectionWrapper" class="space-y-4">
+                <button id="btnSelectHost" tabindex="0" class="w-full py-4 bg-cyan-700 hover:bg-cyan-600 text-white font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg text-lg">Register Host Device</button>
+                <button id="btnSelectMonitor" tabindex="0" class="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg text-lg">Link Secondary Monitor</button>
+            </div>
 
-    <div id="calibScreen" class="hidden-state h-screen w-full flex flex-col items-center justify-center p-6 z-40 absolute inset-0 apex-bg">
-        <div class="w-full max-w-sm text-center bg-slate-950/90 p-6 rounded-xl border border-cyan-500/30 backdrop-blur-md shadow-2xl">
-            <h2 class="text-2xl font-black text-cyan-400 mb-3 hud-font uppercase tracking-widest glow">Chassis Calibration</h2>
-            <p class="text-slate-300 text-sm mb-8 font-medium">Securely mount the device onto the physical chassis floorboard, then establish the flat horizontal zero-point baseline.</p>
-            
-            <button id="btnSetZero" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest rounded-lg transition-transform active:scale-95 shadow-lg mb-4">Set Position as 0°</button>
-            <button id="btnEscapeCalib" class="w-full text-red-400 text-xs font-black uppercase tracking-widest hover:text-red-300 transition-colors">Cancel Calibration</button>
-        </div>
-    </div>
+            <div id="credentialsForm" class="hidden-state text-left space-y-4">
+                <div id="sessionField" class="hidden-state">
+                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Target Transceiver ID</label>
+                    <input id="sessionIDInput" type="text" tabindex="0" placeholder="0000" maxlength="4" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-xl text-cyan-400 text-center font-bold tracking-[0.5em] outline-none">
+                </div>
+                <div>
+                    <label class="text-[11px] text-slate-400 uppercase tracking-widest block mb-1">Master Access Key</label>
+                    <input id="masterPasswordInput" type="password" tabindex="0" placeholder="••••••••" class="w-full bg-slate-950 border-2 border-slate-800 p-4 rounded-xl text-white text-center font-bold tracking-widest outline-none">
+                </div>
+                <button id="btnSubmitAuth" tabindex="0" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold uppercase tracking-widest rounded-xl shadow-lg">Authorize Node Link</button>
+                <button id="btnCancelAuth" tabindex="0" class="w-full text-center text-slate-500 text-xs uppercase font-bold hover:text-slate-300 pt-2 tracking-widest">Back to Terminal</button>
+            </div>
 
-    <div id="mainHud" class="hidden-state h-screen w-full flex flex-col p-4 z-30 absolute inset-0 bg-slate-950">
-        
-        <div class="flex justify-between items-center bg-slate-900/80 backdrop-blur-sm p-3 rounded-lg border border-slate-800 mb-4 shadow-md z-20 shrink-0">
-            <div class="flex space-x-3 items-center">
-                <div id="telemetryIdDisplay" class="px-3 py-1.5 bg-slate-950 border border-cyan-500/30 text-cyan-400 rounded font-black text-xs hud-font tracking-widest">ID: ----</div>
-                <button id="gearBtn" class="px-4 py-1.5 bg-slate-950 border border-cyan-500/50 text-cyan-400 rounded font-bold uppercase text-xs hud-font">Gear: FWD</button>
-            </div>
-            <div class="flex space-x-2 items-center">
-                <button id="endHostBtn" class="px-4 py-1.5 bg-red-950 text-red-400 hover:bg-red-600 hover:text-white border border-red-900 rounded font-bold uppercase text-xs">Disconnect</button>
-            </div>
-        </div>
+            <p class="text-[12px] text-slate-500 font-bold mt-8 tracking-widest border-t border-slate-800/80 pt-4">Created By-Aadish Madhav</p>
+        </div>
+    </div>
 
-        <div class="flex-1 flex flex-row gap-4 h-full min-h-0">
-            
-            <div class="w-[80%] flex flex-col gap-4 h-full">
-                
-                <div class="flex-1 rounded-xl overflow-hidden border border-slate-800 bg-black relative shadow-lg">
-                    <div class="absolute top-3 left-3 px-2 py-1 bg-black/70 rounded text-[9px] font-bold text-red-400 tracking-widest uppercase z-10 flex items-center gap-1.5">
-                        <span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span> LIVE SUBSURFACE FEED
-                    </div>
-                    <video id="fullViewCameraStream" autoplay playsinline muted class="w-full h-full object-cover"></video>
-                </div>
+    <div id="calibScreen" class="hidden-state h-screen w-full flex flex-col items-center justify-center p-6 z-40 absolute inset-0 apex-bg">
+        <div class="w-full max-w-sm text-center bg-slate-950/90 p-8 rounded-2xl border border-cyan-500/30 backdrop-blur-md shadow-2xl">
+            <h2 class="text-3xl font-bold text-cyan-400 mb-2 uppercase tracking-widest glow-effect">Sensor Alignment</h2>
+            <p class="text-slate-400 text-sm mb-8 tracking-wide">Mount the host device securely inside the chassis bay, then baseline horizontal vectors.</p>
+            
+            <button id="btnSetZero" tabindex="0" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-xl shadow-lg mb-4 text-lg">Calibrate Surface 0°</button>
+            <button id="btnSkipCalib" tabindex="0" class="w-full py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-bold uppercase tracking-widest rounded-xl">Skip & Continue</button>
+            
+            <p class="text-xs text-emerald-400 font-bold tracking-widest mt-6 bg-emerald-950/40 py-2 rounded-lg border border-emerald-900/30 uppercase">100% Secure & Robust</p>
+        </div>
+    </div>
 
-                <div class="h-24 grid grid-cols-3 gap-4 shrink-0">
-                    <div class="bg-slate-900/60 border border-slate-800/80 p-4 rounded-lg flex flex-col justify-center">
-                        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Pitch Angle</p>
-                        <p id="slopeText" class="text-3xl text-cyan-400 hud-font font-black mt-1">0.0°</p>
-                    </div>
-                    <div class="bg-slate-900/60 border border-slate-800/80 p-4 rounded-lg flex flex-col justify-center">
-                        <div class="flex justify-between items-end mb-1">
-                            <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Safety Gap</p>
-                            <p id="gapPercentageText" class="text-[10px] font-bold text-green-500">99.99%</p>
-                        </div>
-                        <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden">
-                            <div id="gapIndicator" class="h-full bg-green-500 rounded-full" style="width: 99.99%"></div>
-                        </div>
-                    </div>
-                    <div class="bg-slate-900/60 border border-slate-800/80 p-4 rounded-lg flex flex-col justify-center text-right">
-                        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Sea Level</p>
-                        <p id="seaLevelText" class="text-3xl text-white hud-font font-black mt-1">3.22m</p>
-                    </div>
-                </div>
+    <div id="mainHud" class="hidden-state h-screen w-full flex flex-col p-4 z-30 absolute inset-0 bg-slate-950">
+        
+        <div class="flex justify-between items-center bg-slate-900/60 backdrop-blur-md p-3 rounded-xl border border-slate-800/80 mb-4 shadow-xl z-20 shrink-0">
+            <div class="flex space-x-2 items-center">
+                <div id="telemetryIdDisplay" class="px-3 py-1.5 bg-slate-950 border border-cyan-500/30 text-cyan-400 rounded-lg font-bold text-sm tracking-widest">ID: ----</div>
+                
+                <button id="findBtn" tabindex="0" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-xs tracking-widest">Find</button>
+                <button id="settingsBtn" tabindex="0" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg font-bold uppercase text-xs tracking-widest">Settings</button>
+                <button id="previewBtn" tabindex="0" class="px-4 py-1.5 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-700/50 text-cyan-400 rounded-lg font-bold uppercase text-xs tracking-widest">Preview Mode</button>
+                <button id="gearBtn" tabindex="0" class="px-4 py-1.5 bg-slate-950 border border-cyan-500/40 text-cyan-400 rounded-lg font-bold uppercase text-xs tracking-widest">Gear: FWD</button>
+            </div>
+            <button id="endHostBtn" tabindex="0" class="px-4 py-1.5 bg-red-950/60 text-red-400 hover:bg-red-600 hover:text-white border border-red-900/50 rounded-lg font-bold uppercase text-xs tracking-widest">Disconnect</button>
+        </div>
 
-            </div>
+        <div class="flex-1 flex flex-row gap-4 h-full min-h-0">
+            
+            <div class="w-[80%] flex flex-col gap-4 h-full">
+                <div class="flex-1 rounded-2xl overflow-hidden border border-slate-800 bg-black relative shadow-2xl">
+                    <div class="absolute top-3 left-3 px-2.5 py-1 bg-black/80 rounded-md text-[10px] font-bold text-cyan-400 tracking-widest uppercase z-10 flex items-center gap-2 border border-slate-800">
+                        <span class="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-ping"></span> FLUID PREVIEW STREAM
+                    </div>
+                    <video id="fullViewCameraStream" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                </div>
 
-            <div class="w-[20%] bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 flex flex-col items-center justify-center gap-6 shadow-lg h-full">
-                
-                <div id="dashContainer" class="relative w-full aspect-square max-w-[180px] flex items-center justify-center scale-105">
-                    <svg class="w-full h-full transform -rotate-90 glow" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="42" fill="none" stroke="#0f172a" stroke-width="6"></circle>
-                        <circle id="speedDial" class="dial-ring" cx="50" cy="50" r="42" stroke="#ffffff" stroke-dasharray="264" stroke-dashoffset="264"></circle>
-                    </svg>
-                    <div class="absolute text-center select-none bg-black/40 p-4 rounded-full backdrop-blur-sm">
-                        <div id="speedText" class="text-5xl font-black hud-font text-white">0</div>
-                        <div class="text-[10px] text-slate-300 uppercase tracking-widest font-bold mt-1">KM/H</div>
-                    </div>
-                </div>
+                <div class="h-24 grid grid-cols-3 gap-4 shrink-0">
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-3 rounded-xl flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] text-slate-400 uppercase font-bold tracking-widest">Chassis Attitude</p>
+                            <div class="flex gap-3 mt-0.5">
+                                <div><span class="text-[9px] text-slate-500 block">PITCH</span><span id="slopeText" class="text-xl text-cyan-400 font-bold">0.0°</span></div>
+                                <div><span class="text-[9px] text-slate-500 block">ROLL</span><span id="rollText" class="text-xl text-amber-500 font-bold">0.0°</span></div>
+                            </div>
+                        </div>
+                        <div class="w-12 h-12 rounded-full border-2 border-slate-800/80 relative flex items-center justify-center bg-slate-950 shadow-inner shrink-0">
+                            <div class="absolute w-full h-[1px] bg-slate-800/60"></div>
+                            <div class="absolute h-full w-[1px] bg-slate-800/60"></div>
+                            <div class="absolute w-4 h-4 rounded-full border border-cyan-500/20"></div>
+                            <div id="levelBubble" class="w-2.5 h-2.5 rounded-full bg-cyan-400 absolute transition-transform duration-75 ease-out shadow-[0_0_8px_#22d3ee]" style="transform: translate(0px, 0px);"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-4 rounded-xl flex flex-col justify-center">
+                        <div class="flex justify-between items-end mb-1.5">
+                            <p class="text-[11px] text-slate-400 uppercase font-bold tracking-widest">Proximity</p>
+                            <p id="gapPercentageText" class="text-[11px] font-bold text-emerald-400">100.00%</p>
+                        </div>
+                        <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden p-[1px]">
+                            <div id="gapIndicator" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: 100%"></div>
+                        </div>
+                    </div>
 
-                <div class="text-center w-full bg-slate-950 border border-slate-800 p-3 rounded-lg shadow-inner">
-                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Engine Speed</p>
-                    <p id="rpmText" class="text-2xl text-amber-500 hud-font font-black mt-1">0 RPM</p>
-                </div>
-                
-            </div>
-        </div>
-    </div>
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-4 rounded-xl flex flex-col justify-center text-right">
+                        <p class="text-[11px] text-slate-400 uppercase font-bold tracking-widest">Sea Level Base</p>
+                        <p id="seaLevelText" class="text-3xl text-slate-100 font-bold mt-0.5">3.22m</p>
+                    </div>
+                </div>
+            </div>
 
-    <script>
-        const ConfigEngine = {
-            auth: { password: "AL007", sessionId: "0000", selectedRole: null },
-            state: { gear: 'FWD', speed: 0.0, targetSpeed: 0.0 },
-            calibration: { beta: 0 },
-            media: { stream: null },
-            peer: null,
-            animRef: null, loopRef: null
-        };
+            <div class="w-[20%] bg-slate-900/30 border border-slate-800/60 rounded-2xl p-4 flex flex-col items-center justify-center gap-6 shadow-2xl h-full">
+                <div id="dashContainer" class="relative w-full aspect-square max-w-[170px] flex items-center justify-center scale-105">
+                    <svg class="w-full h-full transform -rotate-90 glow-effect text-slate-800" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="41" fill="none" stroke="currentColor" stroke-width="7"></circle>
+                        <circle id="speedDial" class="dial-ring" cx="50" cy="50" r="41" stroke="#ffffff" stroke-dasharray="258" stroke-dashoffset="258"></circle>
+                    </svg>
+                    <div class="absolute text-center select-none bg-slate-950/60 p-4 rounded-full backdrop-blur-sm border border-slate-800/50 w-[80%] aspect-square flex flex-col justify-center items-center">
+                        <div id="speedText" class="text-5xl font-bold text-white leading-none tracking-tight">0</div>
+                        <div class="text-[11px] text-slate-400 uppercase tracking-widest font-bold mt-1">KM/H</div>
+                    </div>
+                </div>
 
-        const elements = {
-            authScreen: document.getElementById('authScreen'),
-            roleSelectArea: document.getElementById('roleSelectArea'),
-            credentialArea: document.getElementById('credentialArea'),
-            idInputWrapper: document.getElementById('idInputWrapper'),
-            sessionIDInput: document.getElementById('sessionIDInput'),
-            masterPasswordInput: document.getElementById('masterPasswordInput'),
-            calibScreen: document.getElementById('calibScreen'),
-            mainHud: document.getElementById('mainHud'),
-            telemetryIdDisplay: document.getElementById('telemetryIdDisplay'),
-            fullViewCameraStream: document.getElementById('fullViewCameraStream'),
-            speedDial: document.getElementById('speedDial'), 
-            speedText: document.getElementById('speedText'), 
-            slopeText: document.getElementById('slopeText'), 
-            rpmText: document.getElementById('rpmText'),
-            gearBtn: document.getElementById('gearBtn')
-        };
+                <div class="text-center w-full bg-slate-950 border border-slate-800/80 p-3 rounded-xl shadow-inner">
+                    <p class="text-[11px] text-slate-400 uppercase font-bold tracking-widest">Engine Power</p>
+                    <p id="rpmText" class="text-2xl text-amber-500 font-bold mt-0.5">0 RPM</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        document.getElementById('btnSelectHost').addEventListener('click', () => {
-            ConfigEngine.auth.selectedRole = 'HOST';
-            elements.roleSelectArea.classList.add('hidden-state');
-            elements.credentialArea.classList.remove('hidden-state');
-            elements.idInputWrapper.classList.add('hidden-state');
-        });
+    <script>
+        const ConfigEngine = {
+            auth: { password: "AL007", sessionId: "0000", selectedRole: null },
+            state: { gear: 'FWD', currentSpeed: 0.0, simulatedTarget: 0.0, activeFacingMode: 'environment' },
+            performance: { topSpeed: 30.0, defaultSeaLevel: 3.22, tiltAngleOffset: 0.0 },
+            media: { stream: null },
+            peer: null, animFrameReference: null
+        };
 
-        document.getElementById('btnSelectMonitor').addEventListener('click', () => {
-            ConfigEngine.auth.selectedRole = 'MONITOR';
-            elements.roleSelectArea.classList.add('hidden-state');
-            elements.credentialArea.classList.remove('hidden-state');
-            elements.idInputWrapper.classList.remove('hidden-state');
-        });
+        const elements = {
+            authScreen: document.getElementById('authScreen'), roleSelectionWrapper: document.getElementById('roleSelectionWrapper'),
+            credentialsForm: document.getElementById('credentialsForm'), sessionField: document.getElementById('sessionField'),
+            sessionIDInput: document.getElementById('sessionIDInput'), masterPasswordInput: document.getElementById('masterPasswordInput'),
+            calibScreen: document.getElementById('calibScreen'), mainHud: document.getElementById('mainHud'),
+            fullViewCameraStream: document.getElementById('fullViewCameraStream'), speedDial: document.getElementById('speedDial'), 
+            speedText: document.getElementById('speedText'), slopeText: document.getElementById('slopeText'),
+            rollText: document.getElementById('rollText'), levelBubble: document.getElementById('levelBubble'),
+            rpmText: document.getElementById('rpmText'), seaLevelText: document.getElementById('seaLevelText'),
+            settingsModal: document.getElementById('settingsModal'), inputTopSpeed: document.getElementById('inputTopSpeed'),
+            inputSeaLevel: document.getElementById('inputSeaLevel'), gapIndicator: document.getElementById('gapIndicator'),
+            gapPercentageText: document.getElementById('gapPercentageText')
+        };
 
-        document.getElementById('btnCancelAuth').addEventListener('click', () => {
-            elements.credentialArea.classList.add('hidden-state');
-            elements.roleSelectArea.classList.remove('hidden-state');
-        });
+        function switchFluidView(hideElement, showElement) {
+            hideElement.classList.replace('visible-state', 'hidden-state');
+            showElement.classList.replace('hidden-state', 'visible-state');
+        }
 
-        document.getElementById('btnSubmitAuth').addEventListener('click', () => {
-            const enteredPass = elements.masterPasswordInput.value;
-            if (enteredPass === ConfigEngine.auth.password) {
-                if (ConfigEngine.auth.selectedRole === 'HOST') {
-                    ConfigEngine.auth.sessionId = Math.floor(1000 + Math.random() * 9000).toString();
-                    elements.authScreen.classList.add('hidden-state');
-                    elements.calibScreen.classList.remove('hidden-state');
-                    initHostCameraPipeline();
-                } else {
-                    ConfigEngine.auth.sessionId = elements.sessionIDInput.value;
-                    if(ConfigEngine.auth.sessionId.length !== 4) {
-                        alert("Please enter a valid 4-digit ID.");
-                        return;
-                    }
-                    elements.authScreen.classList.add('hidden-state');
-                    elements.mainHud.classList.remove('hidden-state');
-                    initSecondaryMonitorConnection(ConfigEngine.auth.sessionId);
-                }
-            } else {
-                alert("Incorrect Master Password.");
-            }
-        });
+        // --- HARDWARE INTERACTION OVERRIDES (TV / LAPTOP) ---
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                if (document.activeElement && document.activeElement.tagName !== 'INPUT') {
+                    e.preventDefault();
+                    document.activeElement.click();
+                }
+            }
+        });
 
-        // HOST: Access camera local hardware execution
-        function initHostCameraPipeline() {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: { ideal: "environment" } }, 
-                    audio: false 
-                }).then(stream => {
-                    ConfigEngine.media.stream = stream;
-                    elements.fullViewCameraStream.srcObject = stream;
-                    elements.fullViewCameraStream.play().catch(e => console.error(e));
-                }).catch(err => {
-                    console.warn("Camera capture error:", err);
-                    alert("Chassis camera hardware initialization failed. Continuing without local display.");
-                });
-            }
-        }
+        // --- PERMISSION GATEWAY (iOS SENSOR BYPASS) ---
+        async function requestIOSPermissions() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try { await DeviceOrientationEvent.requestPermission(); } catch (e) { console.warn("Permissions locked."); }
+            }
+        }
 
-        // HOST: Complete layout calibration baseline verification
-        document.getElementById('btnSetZero').addEventListener('click', () => {
-            const captureInitialZeroBaseline = (event) => {
-                ConfigEngine.calibration.beta = event.beta || 0;
-                window.removeEventListener('deviceorientation', captureInitialZeroBaseline);
-            };
-            window.addEventListener('deviceorientation', captureInitialZeroBaseline);
+        // --- GATEWAY EVENTS ---
+        document.getElementById('btnSelectHost').addEventListener('click', () => {
+            requestIOSPermissions();
+            ConfigEngine.auth.selectedRole = 'HOST';
+            elements.roleSelectionWrapper.classList.add('hidden-state');
+            elements.credentialsForm.classList.remove('hidden-state');
+            elements.sessionField.classList.add('hidden-state');
+        });
 
-            elements.calibScreen.classList.add('hidden-state');
-            elements.mainHud.classList.remove('hidden-state');
-            
-            // Build PeerJS server infrastructure node
-            elements.telemetryIdDisplay.textContent = 'ID: ' + ConfigEngine.auth.sessionId;
-            ConfigEngine.peer = new Peer('apex-07-' + ConfigEngine.auth.sessionId);
-            
-            ConfigEngine.peer.on('call', (call) => {
-                call.answer(ConfigEngine.media.stream);
-            });
+        document.getElementById('btnSelectMonitor').addEventListener('click', () => {
+            ConfigEngine.auth.selectedRole = 'MONITOR';
+            elements.roleSelectionWrapper.classList.add('hidden-state');
+            elements.credentialsForm.classList.remove('hidden-state');
+            elements.sessionField.classList.remove('hidden-state');
+        });
 
-            initTelemetrySystems();
-        });
+        document.getElementById('btnCancelAuth').addEventListener('click', () => {
+            elements.credentialsForm.classList.add('hidden-state');
+            elements.roleSelectionWrapper.classList.remove('hidden-state');
+        });
 
-        document.getElementById('btnEscapeCalib').addEventListener('click', () => {
-            if (ConfigEngine.media.stream) ConfigEngine.media.stream.getTracks().forEach(t => t.stop());
-            window.location.reload();
-        });
+        document.getElementById('btnSubmitAuth').addEventListener('click', () => {
+            if (elements.masterPasswordInput.value === ConfigEngine.auth.password) {
+                if (ConfigEngine.auth.selectedRole === 'HOST') {
+                    ConfigEngine.auth.sessionId = Math.floor(1000 + Math.random() * 9000).toString();
+                    switchFluidView(elements.authScreen, elements.calibScreen);
+                    initializeChassisCameraPipe();
+                } else {
+                    ConfigEngine.auth.sessionId = elements.sessionIDInput.value;
+                    switchFluidView(elements.authScreen, elements.mainHud);
+                    initializeMonitorTelemetryLink(ConfigEngine.auth.sessionId);
+                }
+            }
+        });
 
-        // SECONDARY MONITOR: Peer receiver stream logic
-        function initSecondaryMonitorConnection(targetSessionId) {
-            elements.telemetryIdDisplay.textContent = 'ID: ' + targetSessionId;
-            ConfigEngine.peer = new Peer();
-            
-            ConfigEngine.peer.on('open', () => {
-                // Generate blank audio/video canvas track stream for handshake authentication
-                const canvasDummy = document.createElement('canvas');
-                canvasDummy.width = 1; canvasDummy.height = 1;
-                const blankStreamData = canvasDummy.captureStream(1);
+        // --- STREAM PROCESSING ---
+        function initializeChassisCameraPipe() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: { ideal: ConfigEngine.state.activeFacingMode } }, audio: false 
+                }).then(stream => {
+                    ConfigEngine.media.stream = stream;
+                    elements.fullViewCameraStream.srcObject = stream;
+                    elements.fullViewCameraStream.play().catch(() => {});
+                }).catch(() => console.warn("Optical device initialization error."));
+            }
+        }
 
-                const serverCallNode = ConfigEngine.peer.call('apex-07-' + targetSessionId, blankStreamData);
-                serverCallNode.on('stream', (incomingRemoteStream) => {
-                    elements.fullViewCameraStream.srcObject = incomingRemoteStream;
-                    elements.fullViewCameraStream.play().catch(e => console.error("Video play execution interrupted:", e));
-                });
-            });
+        document.getElementById('previewBtn').addEventListener('click', () => {
+            if (ConfigEngine.media.stream) ConfigEngine.media.stream.getTracks().forEach(t => t.stop());
+            ConfigEngine.state.activeFacingMode = ConfigEngine.state.activeFacingMode === 'environment' ? 'user' : 'environment';
+            initializeChassisCameraPipe();
+        });
 
-            initTelemetrySystems();
-        }
+        // --- MODERN MODALS SUBSYSTEMS ---
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            elements.inputTopSpeed.value = ConfigEngine.performance.topSpeed;
+            elements.inputSeaLevel.value = ConfigEngine.performance.defaultSeaLevel;
+            elements.settingsModal.classList.replace('hidden-state', 'visible-state');
+            elements.inputTopSpeed.focus();
+        });
 
-        elements.gearBtn.addEventListener('click', () => {
-            ConfigEngine.state.gear = ConfigEngine.state.gear === 'FWD' ? 'REV' : 'FWD';
-            elements.gearBtn.textContent = 'Gear: ' + ConfigEngine.state.gear;
-            elements.gearBtn.classList.toggle('text-cyan-400');
-            elements.gearBtn.classList.toggle('text-amber-500');
-        });
+        document.getElementById('btnSaveSettings').addEventListener('click', () => {
+            ConfigEngine.performance.topSpeed = parseFloat(elements.inputTopSpeed.value) || 30.0;
+            ConfigEngine.performance.defaultSeaLevel = parseFloat(elements.inputSeaLevel.value) || 3.22;
+            elements.seaLevelText.textContent = ConfigEngine.performance.defaultSeaLevel.toFixed(2) + 'm';
+            elements.settingsModal.classList.replace('visible-state', 'hidden-state');
+        });
 
-        document.getElementById('endHostBtn').addEventListener('click', () => {
-            if (ConfigEngine.media.stream) ConfigEngine.media.stream.getTracks().forEach(t => t.stop());
-            if (ConfigEngine.peer) ConfigEngine.peer.destroy();
-            window.location.reload();
-        });
+        document.getElementById('btnCloseSettings').addEventListener('click', () => {
+            elements.settingsModal.classList.replace('visible-state', 'hidden-state');
+        });
 
-        function runDynamicSpeedometerTrack() {
-            ConfigEngine.state.speed += (ConfigEngine.state.targetSpeed - ConfigEngine.state.speed) * 0.08;
-            const currentSpeed = Math.max(0, ConfigEngine.state.speed);
-            elements.speedText.textContent = Math.floor(currentSpeed);
-            
-            const factor = Math.min(currentSpeed / 30, 1);
-            elements.speedDial.style.strokeDashoffset = 264 - (factor * 264);
+        document.getElementById('findBtn').addEventListener('click', () => {
+            document.body.style.backgroundColor = "#22d3ee";
+            setTimeout(() => document.body.style.backgroundColor = "#020617", 150);
+        });
 
-            const runningRpm = currentSpeed > 0.3 ? Math.floor(1200 + (factor * 6800)) : 0;
-            elements.rpmText.textContent = runningRpm + ' RPM';
+        // --- ENGINE SYSTEMS TRANSITION ROUTER ---
+        document.getElementById('btnSetZero').addEventListener('click', () => {
+            const getBaseline = (e) => {
+                ConfigEngine.performance.tiltAngleOffset = e.beta || 0;
+                window.removeEventListener('deviceorientation', getBaseline);
+            };
+            window.addEventListener('deviceorientation', getBaseline);
+            engageMainHudSystemView();
+        });
 
-            if (factor === 0) elements.speedDial.style.stroke = "#ffffff";
-            else if (factor < 0.82) elements.speedDial.style.stroke = "#3b82f6";
-            else elements.speedDial.style.stroke = "#ef4444";
+        document.getElementById('btnSkipCalib').addEventListener('click', () => engageMainHudSystemView());
 
-            ConfigEngine.animRef = requestAnimationFrame(runDynamicSpeedometerTrack);
-        }
+        function engageMainHudSystemView() {
+            switchFluidView(elements.calibScreen, elements.mainHud);
+            document.getElementById('telemetryIdDisplay').textContent = 'ID: ' + ConfigEngine.auth.sessionId;
+            
+            ConfigEngine.peer = new Peer('apex-07-' + ConfigEngine.auth.sessionId);
+            ConfigEngine.peer.on('call', (call) => call.answer(ConfigEngine.media.stream));
+            bootTelemetryProcessor();
+        }
 
-        function initTelemetrySystems() {
-            ConfigEngine.animRef = requestAnimationFrame(runDynamicSpeedometerTrack);
+        function initializeMonitorTelemetryLink(targetSessionId) {
+            document.getElementById('telemetryIdDisplay').textContent = 'ID: ' + targetSessionId;
+            ConfigEngine.peer = new Peer();
+            ConfigEngine.peer.on('open', () => {
+                const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+                const dynamicMediaStreamPipe = canvas.captureStream ? canvas.captureStream(1) : (canvas.webkitCaptureStream ? canvas.webkitCaptureStream(1) : null);
+                
+                if (dynamicMediaStreamPipe) {
+                    const call = ConfigEngine.peer.call('apex-07-' + targetSessionId, dynamicMediaStreamPipe);
+                    call.on('stream', (stream) => {
+                        elements.fullViewCameraStream.srcObject = stream;
+                        elements.fullViewCameraStream.play().catch(() => {});
+                    });
+                }
+            });
+            bootTelemetryProcessor();
+        }
 
-            setInterval(() => {
-                ConfigEngine.state.targetSpeed = Math.random() > 0.4 ? Math.random() * 28 : 0;
-            }, 2500);
+        document.getElementById('gearBtn').addEventListener('click', () => {
+            ConfigEngine.state.gear = ConfigEngine.state.gear === 'FWD' ? 'REV' : 'FWD';
+            const btn = document.getElementById('gearBtn');
+            btn.textContent = 'Gear: ' + ConfigEngine.state.gear;
+            btn.classList.toggle('text-cyan-400'); btn.classList.toggle('text-amber-500');
+        });
 
-            if (window.DeviceOrientationEvent) {
-                window.addEventListener('deviceorientation', (event) => {
-                    const currentCalculatedPitch = (event.beta || 0) - ConfigEngine.calibration.beta;
-                    elements.slopeText.textContent = currentCalculatedPitch.toFixed(1) + '°';
-                });
-            }
+        document.getElementById('endHostBtn').addEventListener('click', () => window.location.reload());
 
-            ConfigEngine.loopRef = setInterval(() => {
-                let strictlyCappedGap = Math.min(94 + (Math.random() * 5.99), 99.99);
-                const gapBar = document.getElementById('gapIndicator');
-                const gapText = document.getElementById('gapPercentageText');
-                gapBar.style.width = strictlyCappedGap + '%';
-                gapText.textContent = strictlyCappedGap.toFixed(2) + '%';
-            }, 600);
-        }
-    </script>
+        // --- MATH RENDER CONTEXT METRICS ENGINE ---
+        function processRealtimeSpeedometerPipeline() {
+            ConfigEngine.state.currentSpeed += (ConfigEngine.state.simulatedTarget - ConfigEngine.state.currentSpeed) * 0.075;
+            const velocityValue = Math.max(0, ConfigEngine.state.currentSpeed);
+            
+            elements.speedText.textContent = Math.floor(velocityValue);
+            const normal = Math.min(velocityValue / ConfigEngine.performance.topSpeed, 1);
+            elements.speedDial.style.strokeDashoffset = 258 - (normal * 258);
+            elements.rpmText.textContent = (velocityValue > 0.2 ? Math.floor(1100 + (normal * 7300)) : 0) + ' RPM';
+
+            if (normal === 0) elements.speedDial.style.stroke = "#ffffff";
+            else if (normal < 0.8) elements.speedDial.style.stroke = "#06b6d4";
+            else elements.speedDial.style.stroke = "#ef4444";
+
+            ConfigEngine.animFrameReference = requestAnimationFrame(processRealtimeSpeedometerPipeline);
+        }
+
+        function bootTelemetryProcessor() {
+            ConfigEngine.animFrameReference = requestAnimationFrame(processRealtimeSpeedometerPipeline);
+
+            if (window.DeviceMotionEvent) {
+                window.addEventListener('devicemotion', (e) => {
+                    const vec = e.accelerationIncludingGravity;
+                    if (vec) {
+                        const mag = Math.sqrt(vec.x ** 2 + vec.y ** 2 + vec.z ** 2);
+                        if (mag > 10.5) ConfigEngine.state.simulatedTarget = Math.min(((mag - 9.8) * 4), ConfigEngine.performance.topSpeed);
+                    }
+                });
+            }
+
+            setInterval(() => {
+                if (ConfigEngine.state.simulatedTarget === 0 || Math.random() > 0.75) {
+                    ConfigEngine.state.simulatedTarget = Math.random() > 0.35 ? Math.random() * ConfigEngine.performance.topSpeed : 0;
+                }
+            }, 3000);
+
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', (e) => {
+                    const pitch = (e.beta || 0) - ConfigEngine.performance.tiltAngleOffset;
+                    const roll = e.gamma || 0;
+
+                    elements.slopeText.textContent = pitch.toFixed(1) + '°';
+                    elements.rollText.textContent = roll.toFixed(1) + '°';
+
+                    // Dynamic Horizon vector alignment mapping (Max limits capped inside circle bounding parameters)
+                    const moveX = Math.max(-14, Math.min(14, roll * 1.2));
+                    const moveY = Math.max(-14, Math.min(14, pitch * 1.2));
+                    elements.levelBubble.style.transform = `translate(${moveX}px, ${moveY}px)`;
+                });
+            }
+
+            setInterval(() => {
+                let buffer = Math.min(93.2 + (Math.random() * 6.79), 100.00);
+                elements.gapIndicator.style.width = buffer + '%';
+                elements.gapPercentageText.textContent = buffer.toFixed(2) + '%';
+            }, 750);
+        }
+    </script>
 </body>
-</html>
+</html>      
